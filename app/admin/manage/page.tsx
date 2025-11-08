@@ -139,21 +139,24 @@ export default function AdminManagementPage() {
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null)
   const [loadingView, setLoadingView] = useState(false)
+  const [isAuthorized, setIsAuthorized] = useState(false)
 
   useEffect(() => {
-    // Check authentication
+    // Check authentication immediately
     const userData = localStorage.getItem("user")
     if (!userData) {
-      router.push("/login")
+      router.replace("/login")
       return
     }
 
     const parsedUser = JSON.parse(userData)
     if (parsedUser.role !== "admin") {
-      router.push("/login")
+      router.replace("/login")
       return
     }
 
+    // User is authorized
+    setIsAuthorized(true)
     setUser(parsedUser)
     fetchAllData()
   }, [router])
@@ -668,6 +671,18 @@ export default function AdminManagementPage() {
       XLSX.utils.book_append_sheet(wb, ws, "Students")
       XLSX.writeFile(wb, "student_import_template.xlsx")
     })
+  }
+
+  // Show loading screen while checking authorization
+  if (!isAuthorized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Verifying access...</p>
+        </div>
+      </div>
+    )
   }
 
   if (fetching) {

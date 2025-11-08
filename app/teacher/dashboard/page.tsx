@@ -84,22 +84,24 @@ export default function TeacherDashboard() {
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false)
   const [selectedSessionDetails, setSelectedSessionDetails] = useState<any>(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
+  const [isAuthorized, setIsAuthorized] = useState(false)
 
   useEffect(() => {
-    // Check authentication
+    // Check authentication immediately
     const teacherData = localStorage.getItem("user")
     if (!teacherData) {
-      router.push("/login")
+      router.replace("/login")
       return
     }
 
     const user = JSON.parse(teacherData)
     if (user.role !== "teacher") {
-      alert("Access denied. Teachers only.")
-      router.push("/login")
+      router.replace("/login")
       return
     }
 
+    // User is authorized
+    setIsAuthorized(true)
     setTeacher(user)
     fetchAssignments(user.id)
     fetchActiveSessions(user.id)
@@ -384,6 +386,18 @@ export default function TeacherDashboard() {
       teacher_id: teacher?.id,
       expires_at: session.expires_at
     })
+  }
+
+  // Show loading screen while checking authorization
+  if (!isAuthorized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Verifying access...</p>
+        </div>
+      </div>
+    )
   }
 
   if (loading) {
