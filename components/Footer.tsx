@@ -3,12 +3,12 @@ import { Mail, Heart } from "lucide-react"
 
 export function Footer() {
   return (
-    <footer className="bg-black text-white py-8 mt-auto border-t border-gray-800">
+    <footer className="fixed bottom-0 left-0 right-0 bg-black text-white py-3 border-t border-gray-800 z-50">
       <div className="container mx-auto px-4 max-w-6xl">
-        <div className="flex flex-col items-center justify-center space-y-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0">
           {/* Main Copyright */}
-          <div className="text-center">
-            <p className="text-base font-medium tracking-wide">
+          <div className="text-center sm:text-left">
+            <p className="text-sm font-medium tracking-wide">
               © 2025{" "}
               <span className="font-bold text-white">KPRCAS</span>
               {" • "}
@@ -20,10 +20,10 @@ export function Footer() {
           </div>
           
           {/* Contact Information */}
-          <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-3 text-sm text-gray-300">
-            <div className="flex items-center space-x-2">
-              <Mail className="h-4 w-4 text-blue-400" />
-              <span>Contact us:</span>
+          <div className="flex items-center justify-center space-x-2 text-xs text-gray-300">
+            <div className="flex items-center space-x-1">
+              <Mail className="h-3 w-3 text-blue-400" />
+              <span>Contact:</span>
             </div>
             <a 
               href="mailto:netcraftstudio01@gmail.com" 
@@ -36,15 +36,8 @@ export function Footer() {
           {/* Built with love */}
           <div className="flex items-center space-x-1 text-xs text-gray-400">
             <span>Built with</span>
-            <Heart className="h-3 w-3 text-red-500 fill-red-500 animate-pulse" />
-            <span>for KPRCAS Community</span>
-          </div>
-          
-          {/* Decorative elements */}
-          <div className="flex items-center space-x-4">
-            <div className="w-16 h-px bg-gradient-to-r from-transparent via-gray-600 to-gray-600"></div>
-            <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-            <div className="w-16 h-px bg-gradient-to-l from-transparent via-gray-600 to-gray-600"></div>
+            <Heart className="h-2 w-2 text-red-500 fill-red-500 animate-pulse" />
+            <span>for KPRCAS</span>
           </div>
         </div>
       </div>
