@@ -72,13 +72,16 @@ export default function StudentsPage() {
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .eq("role", "student")
+        .or("role.eq.student,user_type.eq.student")
         .order("name", { ascending: true })
 
       if (error) {
         console.error("Error fetching students:", error)
         return
       }
+
+      console.log("👥 Fetched students:", data?.length || 0, "students")
+      console.log("📋 Sample students:", data?.slice(0, 3))
 
       setStudents(data || [])
       setFilteredStudents(data || [])

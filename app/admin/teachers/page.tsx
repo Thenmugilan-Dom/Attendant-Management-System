@@ -71,7 +71,7 @@ export default function TeachersPage() {
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .eq("role", "teacher")
+        .or("role.eq.teacher,user_type.eq.teacher")
         .order("name", { ascending: true })
 
       if (error) {

@@ -55,21 +55,34 @@ export default function AdminDashboard() {
     try {
       setLoading(true)
 
-      // Fetch total students (role = 'student')
-      const { count: studentCount } = await supabase
+      // Debug: First fetch all users to see what exists
+      const { data: allUsers, error: debugError } = await supabase
         .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("role", "student")
+        .select("id, email, name, role, user_type")
+        .limit(10)
 
-      // Fetch total teachers (role = 'teacher')
-      const { count: teacherCount } = await supabase
+      console.log("🔍 Debug - Sample users:", allUsers)
+      if (debugError) console.error("Debug error:", debugError)
+
+      // Fetch total students using OR condition for both columns
+      const { data: studentData, count: studentCount, error: studentError } = await supabase
         .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("role", "teacher")
+        .select("*", { count: "exact" })
+        .or("role.eq.student,user_type.eq.student")
+
+      // Fetch total teachers using OR condition for both columns  
+      const { data: teacherData, count: teacherCount, error: teacherError } = await supabase
+        .from("users")
+        .select("*", { count: "exact" })
+        .or("role.eq.teacher,user_type.eq.teacher")
 
       console.log("📊 Dashboard Stats:", {
         students: studentCount,
-        teachers: teacherCount
+        teachers: teacherCount,
+        studentError,
+        teacherError,
+        sampleStudents: studentData?.slice(0, 3),
+        sampleTeachers: teacherData?.slice(0, 3)
       })
 
       setStats({
