@@ -64,30 +64,48 @@ export default function AdminDashboard() {
       console.log("🔍 Debug - Sample users:", allUsers)
       if (debugError) console.error("Debug error:", debugError)
 
-      // Fetch total students using OR condition for both columns
-      const { data: studentData, count: studentCount, error: studentError } = await supabase
+      // Try multiple approaches to find students
+      // First try with role column
+      const { data: studentsByRole, count: studentCountByRole } = await supabase
         .from("users")
         .select("*", { count: "exact" })
-        .or("role.eq.student,user_type.eq.student")
+        .eq("role", "student")
 
-      // Fetch total teachers using OR condition for both columns  
-      const { data: teacherData, count: teacherCount, error: teacherError } = await supabase
+      // Then try with user_type column  
+      const { data: studentsByUserType, count: studentCountByUserType } = await supabase
         .from("users")
         .select("*", { count: "exact" })
-        .or("role.eq.teacher,user_type.eq.teacher")
+        .eq("user_type", "student")
+
+      // Try for teachers too
+      const { data: teachersByRole, count: teacherCountByRole } = await supabase
+        .from("users")
+        .select("*", { count: "exact" })
+        .eq("role", "teacher")
+
+      const { data: teachersByUserType, count: teacherCountByUserType } = await supabase
+        .from("users")
+        .select("*", { count: "exact" })
+        .eq("user_type", "teacher")
+
+      // Combine counts (avoiding duplicates by using Set if needed)
+      const totalStudents = (studentCountByRole || 0) + (studentCountByUserType || 0)
+      const totalTeachers = (teacherCountByRole || 0) + (teacherCountByUserType || 0)
 
       console.log("📊 Dashboard Stats:", {
-        students: studentCount,
-        teachers: teacherCount,
-        studentError,
-        teacherError,
-        sampleStudents: studentData?.slice(0, 3),
-        sampleTeachers: teacherData?.slice(0, 3)
+        students: totalStudents,
+        teachers: totalTeachers,
+        studentsByRole: studentCountByRole,
+        studentsByUserType: studentCountByUserType,
+        teachersByRole: teacherCountByRole,
+        teachersByUserType: teacherCountByUserType,
+        sampleStudents: [...(studentsByRole || []), ...(studentsByUserType || [])].slice(0, 3),
+        sampleTeachers: [...(teachersByRole || []), ...(teachersByUserType || [])].slice(0, 3)
       })
 
       setStats({
-        totalStudents: studentCount || 0,
-        totalTeachers: teacherCount || 0,
+        totalStudents: totalStudents,
+        totalTeachers: totalTeachers,
       })
     } catch (error) {
       console.error("Error fetching dashboard data:", error)

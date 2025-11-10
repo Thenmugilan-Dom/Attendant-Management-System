@@ -69,22 +69,40 @@ export default function StudentsPage() {
     try {
       setLoading(true)
       
-      const { data, error } = await supabase
+      // Try both role and user_type columns separately
+      const { data: studentsByRole, error: roleError } = await supabase
         .from("users")
         .select("*")
-        .or("role.eq.student,user_type.eq.student")
+        .eq("role", "student")
         .order("name", { ascending: true })
 
-      if (error) {
-        console.error("Error fetching students:", error)
-        return
-      }
+      const { data: studentsByUserType, error: userTypeError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("user_type", "student")
+        .order("name", { ascending: true })
 
-      console.log("👥 Fetched students:", data?.length || 0, "students")
-      console.log("📋 Sample students:", data?.slice(0, 3))
+      if (roleError) console.error("Error fetching students by role:", roleError)
+      if (userTypeError) console.error("Error fetching students by user_type:", userTypeError)
 
-      setStudents(data || [])
-      setFilteredStudents(data || [])
+      // Combine results and remove duplicates
+      const allStudents = [
+        ...(studentsByRole || []),
+        ...(studentsByUserType || [])
+      ]
+      
+      // Remove duplicates based on email
+      const uniqueStudents = allStudents.filter((student, index, self) =>
+        index === self.findIndex((s) => s.email === student.email)
+      )
+
+      console.log("👥 Fetched students:", uniqueStudents.length, "students")
+      console.log("📋 Sample students:", uniqueStudents.slice(0, 3))
+      console.log("🔍 Students by role:", studentsByRole?.length || 0)
+      console.log("🔍 Students by user_type:", studentsByUserType?.length || 0)
+
+      setStudents(uniqueStudents)
+      setFilteredStudents(uniqueStudents)
     } catch (error) {
       console.error("Error fetching students:", error)
     } finally {
