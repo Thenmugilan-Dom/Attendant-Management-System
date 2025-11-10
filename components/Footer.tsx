@@ -1,5 +1,4 @@
 import React from "react"
-import { Mail, Phone } from "lucide-react"
 
 export function Footer() {
   return (
@@ -22,22 +21,22 @@ export function Footer() {
           {/* Bottom: Contact Information */}
           <div className="flex items-center justify-between w-full max-w-md">
             {/* Left: Phone */}
-            <div className="flex items-center space-x-1 text-xs text-gray-300">
-              <Phone className="h-3 w-3 text-green-400 flex-shrink-0" />
+            <div className="text-xs text-gray-300">
+              <span className="text-white font-medium">Phone_No:</span>{" "}
               <a 
-                href="tel:+919876543210" 
-                className="text-green-400 hover:text-green-300 transition-colors duration-200 font-medium"
+                href="tel:+918122696986" 
+                className="text-gray-300 hover:text-white transition-colors duration-200"
               >
-                +91 8122696986
+                8122696986
               </a>
             </div>
             
             {/* Right: Email */}
-            <div className="flex items-center space-x-1 text-xs text-gray-300">
-              <Mail className="h-3 w-3 text-blue-400 flex-shrink-0" />
+            <div className="text-xs text-gray-300">
+              <span className="text-white font-medium">Contact Us:</span>{" "}
               <a 
                 href="mailto:netcraftstudio01@gmail.com" 
-                className="text-blue-400 hover:text-blue-300 transition-colors duration-200 font-medium"
+                className="text-gray-300 hover:text-white transition-colors duration-200"
               >
                 netcraftstudio01@gmail.com
               </a>
