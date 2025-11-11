@@ -16,9 +16,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import QRCode from "react-qr-code"
-import { Calendar, Users, CheckCircle, RefreshCw, QrCode, GraduationCap } from "lucide-react"
+import { Calendar, Users, CheckCircle, QrCode, GraduationCap } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { generatePDF, generateCSV, generateComprehensivePDF, generateComprehensiveCSV } from "@/lib/reportGenerator"
+import { generateComprehensivePDF, generateComprehensiveCSV } from "@/lib/reportGenerator"
 
 interface User {
   id: string
@@ -78,7 +78,6 @@ export default function TeacherDashboard() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [selectedClassId, setSelectedClassId] = useState("")
   const [selectedSubjectId, setSelectedSubjectId] = useState("")
-  const [todayAttendance, setTodayAttendance] = useState<any[]>([])
   const [stats, setStats] = useState({
     todayPresent: 0,
     totalSessions: 0,
@@ -90,11 +89,6 @@ export default function TeacherDashboard() {
   const [students, setStudents] = useState<Student[]>([])
   const [loadingStudents, setLoadingStudents] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
-  
-  // Attendance reports states
-  const [showAttendanceDialog, setShowAttendanceDialog] = useState(false)
-  const [selectedSessionDetails, setSelectedSessionDetails] = useState<any>(null)
-  const [loadingDetails, setLoadingDetails] = useState(false)
 
   // Comprehensive reports states
   const [showReportsDialog, setShowReportsDialog] = useState(false)
@@ -186,7 +180,6 @@ export default function TeacherDashboard() {
 
       if (activeSessionData) {
         setActiveSession(activeSessionData)
-        fetchSessionAttendance(activeSessionData.id)
       }
 
       // Fetch today's stats
@@ -222,20 +215,7 @@ export default function TeacherDashboard() {
     }
   }
 
-  const fetchSessionAttendance = async (sessionId: string) => {
-    try {
-      const { data } = await supabase
-        .from("attendance_records")
-        .select("*, students(name, email)")
-        .eq("session_id", sessionId)
-        .eq("status", "present")
-        .order("created_at", { ascending: false })
 
-      setTodayAttendance(data || [])
-    } catch (error) {
-      console.error("Error fetching session attendance:", error)
-    }
-  }
 
   const generateSessionCode = () => {
     return Math.random().toString(36).substring(2, 10).toUpperCase()
@@ -299,7 +279,6 @@ export default function TeacherDashboard() {
 
       console.log("✅ Session created successfully:", session)
       setActiveSession(session)
-      setTodayAttendance([])
     } catch (error) {
       console.error("❌ Error starting session:", error)
       console.error("Error type:", typeof error)
@@ -329,64 +308,11 @@ export default function TeacherDashboard() {
       setActiveSession(null)
       setSelectedClassId("")
       setSelectedSubjectId("")
-      setTodayAttendance([])
     } catch (error) {
       console.error("❌ Caught error ending session:", error)
       alert(`Failed to end session: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleViewAttendance = async () => {
-    if (!activeSession) return
-    
-    try {
-      setLoadingDetails(true)
-      const response = await fetch(`/api/attendance/records?sessionId=${activeSession.id}`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch attendance records')
-      }
-      
-      const data = await response.json()
-      setSelectedSessionDetails(data)
-      setShowAttendanceDialog(true)
-    } catch (error) {
-      console.error('Error fetching attendance:', error)
-      alert('Failed to fetch attendance records. Please try again.')
-    } finally {
-      setLoadingDetails(false)
-    }
-  }
-
-  const handleDownloadPDF = () => {
-    if (!selectedSessionDetails) return
-    
-    try {
-      generatePDF(
-        selectedSessionDetails.session,
-        selectedSessionDetails.records,
-        selectedSessionDetails.statistics
-      )
-    } catch (error) {
-      console.error('Error generating PDF:', error)
-      alert('Failed to generate PDF. Please try again.')
-    }
-  }
-
-  const handleDownloadCSV = () => {
-    if (!selectedSessionDetails) return
-    
-    try {
-      generateCSV(
-        selectedSessionDetails.session,
-        selectedSessionDetails.records,
-        selectedSessionDetails.statistics
-      )
-    } catch (error) {
-      console.error('Error generating CSV:', error)
-      alert('Failed to generate CSV. Please try again.')
     }
   }
 
@@ -444,13 +370,6 @@ export default function TeacherDashboard() {
     } catch (error) {
       console.error('Error generating comprehensive CSV:', error)
       alert('Failed to generate CSV. Please try again.')
-    }
-  }
-
-  const refreshAttendance = () => {
-    if (activeSession) {
-      fetchSessionAttendance(activeSession.id)
-      setStats((prev) => ({ ...prev, todayPresent: todayAttendance.length }))
     }
   }
 
@@ -706,25 +625,14 @@ export default function TeacherDashboard() {
                       Session Code: {activeSession.session_code}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      className="flex-1"
-                      variant="outline"
-                      onClick={handleViewAttendance}
-                      disabled={loading || loadingDetails}
-                    >
-                      <Users className="mr-2 h-4 w-4" />
-                      {loadingDetails ? 'Loading...' : 'View Attendance'}
-                    </Button>
-                    <Button
-                      className="flex-1"
-                      variant="destructive"
-                      onClick={handleEndSession}
-                      disabled={loading}
-                    >
-                      End Session
-                    </Button>
-                  </div>
+                  <Button
+                    className="w-full"
+                    variant="destructive"
+                    onClick={handleEndSession}
+                    disabled={loading}
+                  >
+                    End Session
+                  </Button>
                 </>
               )}
             </CardContent>
@@ -760,67 +668,7 @@ export default function TeacherDashboard() {
           </Card>
         </div>
 
-        {/* Attendance List */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Current Session Attendance</CardTitle>
-                <CardDescription>
-                  {activeSession
-                    ? `${todayAttendance.length} students marked present`
-                    : "No active session"}
-                </CardDescription>
-              </div>
-              {activeSession && (
-                <Button variant="outline" size="sm" onClick={refreshAttendance}>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {!activeSession ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Start a session to see attendance
-              </div>
-            ) : todayAttendance.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No students have marked attendance yet
-              </div>
-            ) : (
-              <div className="rounded-md border">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="p-3 text-left text-sm font-medium">#</th>
-                      <th className="p-3 text-left text-sm font-medium">Student Name</th>
-                      <th className="p-3 text-left text-sm font-medium">Email</th>
-                      <th className="p-3 text-left text-sm font-medium">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {todayAttendance.map((record, index) => (
-                      <tr key={record.id} className="border-b">
-                        <td className="p-3 text-sm">{index + 1}</td>
-                        <td className="p-3 text-sm">
-                          {record.users?.name || "N/A"}
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
-                          {record.users?.email || "N/A"}
-                        </td>
-                        <td className="p-3 text-sm">
-                          {new Date(record.created_at).toLocaleTimeString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+
 
         {/* View Students Section */}
         <Card>
@@ -1181,151 +1029,6 @@ export default function TeacherDashboard() {
           </CardContent>
         </Card>
       </main>
-
-      {/* Attendance Records Dialog */}
-      <Dialog open={showAttendanceDialog} onOpenChange={setShowAttendanceDialog}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Attendance Records</DialogTitle>
-            <DialogDescription>
-              View and export attendance records for this session
-            </DialogDescription>
-          </DialogHeader>
-          
-          {loadingDetails ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-sm text-muted-foreground mt-2">Loading attendance records...</p>
-            </div>
-          ) : selectedSessionDetails ? (
-            <div className="space-y-6">
-              {/* Session Info Card */}
-              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Session Code</p>
-                    <p className="font-mono font-bold text-lg">{selectedSessionDetails.session?.session_code}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Subject</p>
-                    <p className="font-medium">{selectedSessionDetails.session?.subject?.subject_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Class</p>
-                    <p className="font-medium">{selectedSessionDetails.session?.class?.class_name} {selectedSessionDetails.session?.class?.section}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Date</p>
-                    <p className="font-medium">{new Date(selectedSessionDetails.session?.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Statistics Card */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold">{selectedSessionDetails.statistics?.total_records}</p>
-                    <p className="text-xs text-muted-foreground">Total Students</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold text-green-600">{selectedSessionDetails.statistics?.total_present}</p>
-                    <p className="text-xs text-muted-foreground">Present</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold text-red-600">{selectedSessionDetails.statistics?.total_absent}</p>
-                    <p className="text-xs text-muted-foreground">Absent</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{selectedSessionDetails.statistics?.attendance_percentage}%</p>
-                    <p className="text-xs text-muted-foreground">Attendance</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 justify-end">
-                <Button
-                  onClick={handleDownloadPDF}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  📄 Download PDF
-                </Button>
-                <Button
-                  onClick={handleDownloadCSV}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  📊 Download CSV
-                </Button>
-              </div>
-
-              {/* Attendance Records Table */}
-              {selectedSessionDetails.records && selectedSessionDetails.records.length > 0 ? (
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="p-3 text-left text-xs font-medium">#</th>
-                          <th className="p-3 text-left text-xs font-medium">Student ID</th>
-                          <th className="p-3 text-left text-xs font-medium">Name</th>
-                          <th className="p-3 text-left text-xs font-medium">Email</th>
-                          <th className="p-3 text-center text-xs font-medium">Status</th>
-                          <th className="p-3 text-center text-xs font-medium">Time</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedSessionDetails.records.map((record: any, idx: number) => (
-                          <tr key={idx} className="border-t hover:bg-muted/50">
-                            <td className="p-3 text-sm">{idx + 1}</td>
-                            <td className="p-3 font-mono text-xs">
-                              {record.students?.student_id}
-                            </td>
-                            <td className="p-3">{record.students?.name}</td>
-                            <td className="p-3 text-xs text-muted-foreground">
-                              {record.students?.email}
-                            </td>
-                            <td className="p-3 text-center">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs ${
-                                  record.status === "present"
-                                    ? "bg-green-100 text-green-800"
-                                    : record.status === "absent"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                {record.status}
-                              </span>
-                            </td>
-                            <td className="p-3 text-center text-xs">
-                              {record.marked_at ? new Date(record.marked_at).toLocaleTimeString() : '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                  No students have marked attendance yet
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              Failed to load attendance records. Please try again.
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
