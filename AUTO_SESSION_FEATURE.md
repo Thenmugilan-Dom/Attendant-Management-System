@@ -13,34 +13,33 @@ When assigning a teacher to a class and subject, admins can now:
 - The system will automatically create sessions 5 minutes before class time
 
 ### 2. Automatic Session Creation
-- A cron job runs every 3 minutes
-- It checks for scheduled assignments
-- If a class is about to start (within 5-7 minutes), it:
+- A cron job runs every 15 minutes (Vercel Cron)
+- It checks for scheduled assignments where `auto_session_enabled=true`
+- If a class is about to start (within 0-7 minutes), it:
   1. Creates an attendance session
-  2. Generates a unique session code
-  3. Generates a QR code
-  4. **Sends first email to teacher** with QR code and session code
-  5. Session is active for 5 minutes
-- When class actually starts (at scheduled time), it:
-  1. **Sends second alert email** notifying teacher that session is now live
-  2. Reminds teacher of session code
-  3. Provides urgent notification to start taking attendance
+  2. Generates a unique session code (6 characters: e.g., "ABC123")
+  3. Generates a QR code with session URL
+  4. **Sends email to teacher** with QR code image and session code
+  5. Session is active for 5 minutes total
+- No second alert needed: Sessions show on teacher dashboard with "Starts automatically" label
 
 ### 3. Teacher Experience
-Teachers receive **TWO emails**:
+Teachers automatically see **scheduled sessions** on their dashboard:
 
-**Email 1 - 5 minutes before class (Preparation):**
-- Session code
-- QR code (as an image)
-- Class and subject details
-- Expiration time
-- Instructions for students
+**Dashboard Display:**
+- A blue card titled "📅 Scheduled Sessions Today"
+- Lists all classes scheduled to auto-start today
+- Shows class name, section, subject code, and subject name
+- Shows scheduled start time in 12-hour AM/PM format (e.g., "9:30 AM")
+- Displays status: "Starts automatically"
+- No manual action needed—sessions start automatically at scheduled time
 
-**Email 2 - When class starts (Alert/Reminder):**
-- 🔔 Urgent notification that class has started
-- Session code reminder
-- Expiration time reminder
-- Call to action to announce session code to students
+**Email Notification:**
+- Received 5 minutes before class start (auto-generated)
+- Contains QR code image that students scan
+- Shows session code for manual entry if needed
+- Lists class, subject, and expiration time
+- Students can scan QR or enter code to mark attendance
 
 ## Database Changes
 
@@ -91,7 +90,7 @@ NEXT_PUBLIC_APP_URL=https://your-domain.vercel.app
 
 ### Option 1: Vercel (Automatic - Recommended)
 The `vercel.json` file is already configured. Once deployed to Vercel:
-- Cron runs automatically every 3 minutes
+- Cron runs automatically every 15 minutes (`*/15 * * * *`)
 - No additional configuration needed
 - Free tier includes cron jobs
 
@@ -102,7 +101,7 @@ GET https://your-domain.com/api/cron/create-scheduled-sessions
 Authorization: Bearer YOUR_CRON_SECRET
 ```
 
-Schedule: `*/3 * * * *` (every 3 minutes)
+Schedule: `*/15 * * * *` (every 15 minutes)
 
 ### Option 3: Manual Testing
 Visit the endpoint in your browser:
