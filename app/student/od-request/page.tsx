@@ -40,8 +40,8 @@ export default function ODRequestPage() {
   const [studentId, setStudentId] = useState<string>('');
   const [classId, setClassId] = useState<string>('');
   const [subjectId, setSubjectId] = useState<string>('');
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [admins, setAdmins] = useState<Admin[]>([]);
+  const [teachersInClass, setTeachersInClass] = useState<Teacher[]>([]);
+  const [adminsForTeacher, setAdminsForTeacher] = useState<Admin[]>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [selectedAdminId, setSelectedAdminId] = useState<string>('');
   const [odDate, setOdDate] = useState<string>('');
@@ -51,7 +51,7 @@ export default function ODRequestPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const router = useRouter();
 
-  // Initialize student data and fetch teachers/admins
+  // Initialize student data and fetch teachers from their class
   useEffect(() => {
     const initializeData = async () => {
       const userStr = localStorage.getItem('user');
@@ -73,24 +73,28 @@ export default function ODRequestPage() {
           .limit(1);
 
         if (studentData && studentData.length > 0) {
-          setClassId(studentData[0].class_id);
+          const classId = studentData[0].class_id;
+          setClassId(classId);
+
+          // Fetch teachers who teach this class
+          const { data: teacherSubjectsData } = await supabase
+            .from('teacher_subjects')
+            .select(`
+              teacher_id,
+              users:teacher_id (id, name, email)
+            `)
+            .eq('class_id', classId);
+
+          // Extract unique teachers
+          const uniqueTeachers: { [key: string]: Teacher } = {};
+          (teacherSubjectsData || []).forEach((ts: any) => {
+            if (ts.users) {
+              uniqueTeachers[ts.teacher_id] = ts.users;
+            }
+          });
+
+          setTeachersInClass(Object.values(uniqueTeachers));
         }
-
-        // Fetch all teachers and admins
-        const { data: teachersData } = await supabase
-          .from('users')
-          .select('id, name, email')
-          .eq('user_type', 'teacher')
-          .limit(100);
-
-        const { data: adminsData } = await supabase
-          .from('users')
-          .select('id, name, email')
-          .eq('user_type', 'admin')
-          .limit(100);
-
-        setTeachers(teachersData || []);
-        setAdmins(adminsData || []);
 
         // Fetch existing OD requests for this student
         const { data: odRequestsData } = await supabase
@@ -121,6 +125,32 @@ export default function ODRequestPage() {
 
     initializeData();
   }, [router]);
+
+  // Fetch admins when teacher is selected
+  useEffect(() => {
+    const fetchAdminsForTeacher = async () => {
+      if (!selectedTeacherId) {
+        setAdminsForTeacher([]);
+        return;
+      }
+
+      try {
+        // Get all admins (since we don't have explicit admin-teacher mapping,
+        // we'll show all admins and the system will link based on class)
+        const { data: adminsData } = await supabase
+          .from('users')
+          .select('id, name, email')
+          .eq('user_type', 'admin')
+          .limit(100);
+
+        setAdminsForTeacher(adminsData || []);
+      } catch (error) {
+        console.error('Error fetching admins:', error);
+      }
+    };
+
+    fetchAdminsForTeacher();
+  }, [selectedTeacherId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -281,33 +311,57 @@ export default function ODRequestPage() {
             {/* Teacher Selection */}
             <div>
               <Label htmlFor="teacher">Select Teacher for Approval *</Label>
-              <Select
-                value={selectedTeacherId}
-                onValueChange={setSelectedTeacherId}
-              >
-                <option value="">Choose a teacher...</option>
-                {teachers.map((teacher) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.name} ({teacher.email})
-                  </option>
-                ))}
-              </Select>
+              {teachersInClass.length > 0 ? (
+                <select
+                  id="teacher"
+                  value={selectedTeacherId}
+                  onChange={(e) => setSelectedTeacherId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Choose a teacher...</option>
+                  {teachersInClass.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.name} ({teacher.email})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800">
+                  No teachers found for your class. Please contact admin.
+                </div>
+              )}
             </div>
 
             {/* Admin Selection */}
             <div>
               <Label htmlFor="admin">Select Admin for Approval *</Label>
-              <Select
-                value={selectedAdminId}
-                onValueChange={setSelectedAdminId}
-              >
-                <option value="">Choose an administrator...</option>
-                {admins.map((admin) => (
-                  <option key={admin.id} value={admin.id}>
-                    {admin.name} ({admin.email})
-                  </option>
-                ))}
-              </Select>
+              {selectedTeacherId ? (
+                adminsForTeacher.length > 0 ? (
+                  <select
+                    id="admin"
+                    value={selectedAdminId}
+                    onChange={(e) => setSelectedAdminId(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Choose an administrator...</option>
+                    {adminsForTeacher.map((admin) => (
+                      <option key={admin.id} value={admin.id}>
+                        {admin.name} ({admin.email})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800">
+                    No admins available for the selected teacher.
+                  </div>
+                )
+              ) : (
+                <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg text-sm text-blue-800">
+                  Please select a teacher first to see available admins.
+                </div>
+              )}
             </div>
 
             {/* Reason */}
