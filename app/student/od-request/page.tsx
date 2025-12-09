@@ -155,8 +155,7 @@ export default function ODRequestPage() {
           reason,
           status,
           teacher_approved,
-          admin_approved,
-          subjects (subject_name)
+          admin_approved
         `)
         .eq('student_id', student.id)
         .order('created_at', { ascending: false })
@@ -164,7 +163,7 @@ export default function ODRequestPage() {
 
       setOdRequests((odRequestsData || []).map((req: any) => ({
         ...req,
-        subjects: Array.isArray(req.subjects) ? req.subjects : [req.subjects].filter(Boolean)
+        subjects: []
       })));
 
       // Move to form step after 1 second
@@ -236,8 +235,7 @@ export default function ODRequestPage() {
           reason,
           status,
           teacher_approved,
-          admin_approved,
-          subjects (subject_name)
+          admin_approved
         `)
         .eq('student_id', studentData.id)
         .order('created_at', { ascending: false })
@@ -245,7 +243,7 @@ export default function ODRequestPage() {
 
       setOdRequests((updatedRequests || []).map((req: any) => ({
         ...req,
-        subjects: Array.isArray(req.subjects) ? req.subjects : [req.subjects].filter(Boolean)
+        subjects: []
       })));
     } catch (error) {
       console.error('Error submitting OD request:', error);

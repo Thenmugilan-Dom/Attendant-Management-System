@@ -210,7 +210,7 @@ CREATE TABLE IF NOT EXISTS od_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-  subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL,
   teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
   od_date DATE NOT NULL,
