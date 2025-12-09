@@ -1552,17 +1552,17 @@ export default function AdminManagementPage() {
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <Label htmlFor="start_time">Start Time</Label>
-                                <div className="flex gap-2">
+                                <div className="relative">
                                   <Input
                                     type="time"
                                     id="start_time"
                                     value={selectedStartTime}
                                     onChange={(e) => setSelectedStartTime(e.target.value)}
                                     placeholder="HH:MM"
-                                    className="flex-1"
+                                    className="flex-1 cursor-pointer"
                                   />
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-1">
+                                <p className="text-sm font-semibold text-green-700 mt-2">
                                   {selectedStartTime ? (() => {
                                     const [hours, minutes] = selectedStartTime.split(':')
                                     const h = parseInt(hours)
@@ -1575,17 +1575,17 @@ export default function AdminManagementPage() {
                               </div>
                               <div>
                                 <Label htmlFor="end_time">End Time</Label>
-                                <div className="flex gap-2">
+                                <div className="relative">
                                   <Input
                                     type="time"
                                     id="end_time"
                                     value={selectedEndTime}
                                     onChange={(e) => setSelectedEndTime(e.target.value)}
                                     placeholder="HH:MM"
-                                    className="flex-1"
+                                    className="flex-1 cursor-pointer"
                                   />
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-1">
+                                <p className="text-sm font-semibold text-green-700 mt-2">
                                   {selectedEndTime ? (() => {
                                     const [hours, minutes] = selectedEndTime.split(':')
                                     const h = parseInt(hours)
@@ -1599,21 +1599,28 @@ export default function AdminManagementPage() {
                             </div>
 
                             {/* AM/PM Conversion Guide */}
-                            <div className="bg-green-50 p-3 rounded text-xs text-green-800 border border-green-200">
-                              <p className="font-semibold mb-2">12-Hour Format Examples:</p>
-                              <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-blue-50 p-3 rounded text-xs text-blue-800 border border-blue-200">
+                              <p className="font-semibold mb-2">How to Set Time:</p>
+                              <ol className="space-y-1 ml-4 list-decimal">
+                                <li>Click on Start/End Time field</li>
+                                <li>A clock picker will appear</li>
+                                <li>Select hours and minutes</li>
+                                <li>Time will show in 12-hour AM/PM format below</li>
+                              </ol>
+                              <p className="mt-2 font-semibold">Example:</p>
+                              <div className="grid grid-cols-2 gap-2 mt-2">
                                 <div>
-                                  <p className="font-medium">Morning (AM)</p>
-                                  <ul className="space-y-1 mt-1">
-                                    <li>• 09:00 → 9:00 AM</li>
-                                    <li>• 10:30 → 10:30 AM</li>
+                                  <p className="font-medium text-blue-900">Morning (AM)</p>
+                                  <ul className="space-y-1 mt-1 ml-2">
+                                    <li>• 9:00 AM</li>
+                                    <li>• 10:30 AM</li>
                                   </ul>
                                 </div>
                                 <div>
-                                  <p className="font-medium">Afternoon (PM)</p>
-                                  <ul className="space-y-1 mt-1">
-                                    <li>• 13:00 → 1:00 PM</li>
-                                    <li>• 15:45 → 3:45 PM</li>
+                                  <p className="font-medium text-blue-900">Afternoon (PM)</p>
+                                  <ul className="space-y-1 mt-1 ml-2">
+                                    <li>• 1:00 PM</li>
+                                    <li>• 3:45 PM</li>
                                   </ul>
                                 </div>
                               </div>
