@@ -1562,7 +1562,16 @@ export default function AdminManagementPage() {
                                     className="flex-1"
                                   />
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-1">24-hour format (e.g., 09:30, 14:45)</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {selectedStartTime ? (() => {
+                                    const [hours, minutes] = selectedStartTime.split(':')
+                                    const h = parseInt(hours)
+                                    const m = minutes
+                                    const period = h >= 12 ? 'PM' : 'AM'
+                                    const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h
+                                    return `${String(h12).padStart(2, '0')}:${m} ${period}`
+                                  })() : 'Select time'}
+                                </p>
                               </div>
                               <div>
                                 <Label htmlFor="end_time">End Time</Label>
@@ -1576,19 +1585,38 @@ export default function AdminManagementPage() {
                                     className="flex-1"
                                   />
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-1">24-hour format (e.g., 10:30, 15:45)</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {selectedEndTime ? (() => {
+                                    const [hours, minutes] = selectedEndTime.split(':')
+                                    const h = parseInt(hours)
+                                    const m = minutes
+                                    const period = h >= 12 ? 'PM' : 'AM'
+                                    const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h
+                                    return `${String(h12).padStart(2, '0')}:${m} ${period}`
+                                  })() : 'Select time'}
+                                </p>
                               </div>
                             </div>
 
-                            {/* Time Format Helper */}
-                            <div className="bg-amber-50 p-3 rounded text-xs text-amber-800 border border-amber-200">
-                              <p className="font-semibold mb-2">Time Format Guide:</p>
-                              <ul className="space-y-1">
-                                <li>• 09:00 = 9:00 AM</li>
-                                <li>• 12:00 = 12:00 PM (Noon)</li>
-                                <li>• 14:30 = 2:30 PM</li>
-                                <li>• 17:00 = 5:00 PM</li>
-                              </ul>
+                            {/* AM/PM Conversion Guide */}
+                            <div className="bg-green-50 p-3 rounded text-xs text-green-800 border border-green-200">
+                              <p className="font-semibold mb-2">12-Hour Format Examples:</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <p className="font-medium">Morning (AM)</p>
+                                  <ul className="space-y-1 mt-1">
+                                    <li>• 09:00 → 9:00 AM</li>
+                                    <li>• 10:30 → 10:30 AM</li>
+                                  </ul>
+                                </div>
+                                <div>
+                                  <p className="font-medium">Afternoon (PM)</p>
+                                  <ul className="space-y-1 mt-1">
+                                    <li>• 13:00 → 1:00 PM</li>
+                                    <li>• 15:45 → 3:45 PM</li>
+                                  </ul>
+                                </div>
+                              </div>
                             </div>
 
                             <div className="bg-blue-50 p-3 rounded text-xs text-blue-800">
