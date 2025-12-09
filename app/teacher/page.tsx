@@ -111,6 +111,7 @@ export default function TeacherDashboard() {
   // Scheduled sessions for today
   const [scheduledSessions, setScheduledSessions] = useState<any[]>([])
   const [loadingScheduled, setLoadingScheduled] = useState(false)
+  const [processedSessions, setProcessedSessions] = useState<Set<string>>(new Set())
 
   // Fetch live attendance for active session
   const fetchLiveAttendance = async (sessionId: string) => {
@@ -189,8 +190,9 @@ export default function TeacherDashboard() {
 
           const timeDiff = Math.abs(now.getTime() - endDate.getTime()) / 60000 // difference in minutes
 
-          // If within 1 minute of end time, stop the session
-          if (timeDiff <= 1 && now.getTime() >= endDate.getTime()) {
+          // Only stop if we're past the end time and haven't already stopped this session
+          const stopKey = `stop_${activeSession.id}_${endHours}:${endMinutes}`
+          if (now.getTime() >= endDate.getTime() && timeDiff <= 1 && !processedSessions.has(stopKey)) {
             console.log(`🛑 Auto-stopping session: ${matchingSchedule.class_name} at ${endHours}:${endMinutes}`)
 
             try {
@@ -203,6 +205,8 @@ export default function TeacherDashboard() {
                 console.log("✅ Session auto-stopped successfully")
                 setActiveSession(null)
                 setLiveAttendance(null)
+                // Mark this stop as processed
+                setProcessedSessions(prev => new Set(prev).add(stopKey))
               }
             } catch (error) {
               console.error("❌ Error auto-stopping session:", error)
@@ -223,8 +227,10 @@ export default function TeacherDashboard() {
 
         const timeDiff = Math.abs(now.getTime() - schedDate.getTime()) / 60000 // difference in minutes
 
-        // If within 2 minutes of start time and no active session yet
-        if (timeDiff <= 2 && !activeSession) {
+        // Only start if within 2 minutes of start time, no active session, and haven't already started this session today
+        const startKey = `start_${session.class_id}_${session.subject_id}_${schedHours}:${schedMinutes}`
+        
+        if (timeDiff <= 2 && !activeSession && !processedSessions.has(startKey)) {
           console.log(`🚀 Auto-starting session: ${session.class_name} at ${schedTime}`)
 
           try {
@@ -240,6 +246,8 @@ export default function TeacherDashboard() {
 
             if (existingSession) {
               console.log("✅ Session already exists for this class")
+              // Mark as processed even if it already existed
+              setProcessedSessions(prev => new Set(prev).add(startKey))
               return
             }
 
@@ -273,6 +281,9 @@ export default function TeacherDashboard() {
 
             console.log("✅ Session auto-started:", newSession)
             setActiveSession(newSession)
+            
+            // Mark this start as processed so it doesn't start again
+            setProcessedSessions(prev => new Set(prev).add(startKey))
 
             // Send QR code email
             try {
@@ -303,7 +314,7 @@ export default function TeacherDashboard() {
     const interval = setInterval(checkAndAutoStart, 10000)
 
     return () => clearInterval(interval)
-  }, [scheduledSessions, user, activeSession])
+  }, [scheduledSessions, user, activeSession, processedSessions])
 
   useEffect(() => {
     // Check authentication immediately
