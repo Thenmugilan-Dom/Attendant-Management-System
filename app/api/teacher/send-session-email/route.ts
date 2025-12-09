@@ -79,6 +79,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log('📧 Preparing to send email to:', teacher.email)
+    console.log('🎯 Using Gmail account:', process.env.GMAIL_USER)
+    console.log('📝 Session Code:', session.session_code)
+    console.log('📚 Class:', classData?.class_name)
+    console.log('📖 Subject:', subjectData?.subject_code)
+
     // Generate QR code as buffer for attachment
     let qrCodeBuffer: Buffer
     try {
