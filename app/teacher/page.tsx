@@ -403,7 +403,7 @@ export default function TeacherDashboard() {
       }
 
       // Check for active session
-      const { data: activeSessionData } = await supabase
+      const { data: activeSessionDataArray, error: activeSessionError } = await supabase
         .from("attendance_sessions")
         .select(`
           *,
@@ -412,10 +412,10 @@ export default function TeacherDashboard() {
         `)
         .eq("teacher_id", teacherId)
         .eq("status", "active")
-        .single()
+        .limit(1)
 
-      if (activeSessionData) {
-        setActiveSession(activeSessionData)
+      if (!activeSessionError && activeSessionDataArray && activeSessionDataArray.length > 0) {
+        setActiveSession(activeSessionDataArray[0])
       }
 
       // Fetch today's stats
