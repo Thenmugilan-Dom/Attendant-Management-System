@@ -13,7 +13,7 @@
   "crons": [
     {
       "path": "/api/cron/create-scheduled-sessions",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
