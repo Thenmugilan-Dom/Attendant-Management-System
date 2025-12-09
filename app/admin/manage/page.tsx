@@ -1552,22 +1552,43 @@ export default function AdminManagementPage() {
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <Label htmlFor="start_time">Start Time</Label>
-                                <Input
-                                  type="time"
-                                  id="start_time"
-                                  value={selectedStartTime}
-                                  onChange={(e) => setSelectedStartTime(e.target.value)}
-                                />
+                                <div className="flex gap-2">
+                                  <Input
+                                    type="time"
+                                    id="start_time"
+                                    value={selectedStartTime}
+                                    onChange={(e) => setSelectedStartTime(e.target.value)}
+                                    placeholder="HH:MM"
+                                    className="flex-1"
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">24-hour format (e.g., 09:30, 14:45)</p>
                               </div>
                               <div>
                                 <Label htmlFor="end_time">End Time</Label>
-                                <Input
-                                  type="time"
-                                  id="end_time"
-                                  value={selectedEndTime}
-                                  onChange={(e) => setSelectedEndTime(e.target.value)}
-                                />
+                                <div className="flex gap-2">
+                                  <Input
+                                    type="time"
+                                    id="end_time"
+                                    value={selectedEndTime}
+                                    onChange={(e) => setSelectedEndTime(e.target.value)}
+                                    placeholder="HH:MM"
+                                    className="flex-1"
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">24-hour format (e.g., 10:30, 15:45)</p>
                               </div>
+                            </div>
+
+                            {/* Time Format Helper */}
+                            <div className="bg-amber-50 p-3 rounded text-xs text-amber-800 border border-amber-200">
+                              <p className="font-semibold mb-2">Time Format Guide:</p>
+                              <ul className="space-y-1">
+                                <li>• 09:00 = 9:00 AM</li>
+                                <li>• 12:00 = 12:00 PM (Noon)</li>
+                                <li>• 14:30 = 2:30 PM</li>
+                                <li>• 17:00 = 5:00 PM</li>
+                              </ul>
                             </div>
 
                             <div className="bg-blue-50 p-3 rounded text-xs text-blue-800">
