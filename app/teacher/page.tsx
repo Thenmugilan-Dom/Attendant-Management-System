@@ -235,16 +235,20 @@ export default function TeacherDashboard() {
 
           try {
             // Check if session already exists for this assignment
-            const { data: existingSession } = await supabase
+            const { data: existingSession, error: checkError } = await supabase
               .from("attendance_sessions")
               .select("id")
               .eq("teacher_id", user.id)
               .eq("class_id", session.class_id)
               .eq("subject_id", session.subject_id)
               .eq("status", "active")
-              .single()
+              .limit(1)
 
-            if (existingSession) {
+            if (checkError) {
+              console.log("ℹ️ Check for existing session returned:", checkError.message)
+            }
+
+            if (existingSession && existingSession.length > 0) {
               console.log("✅ Session already exists for this class")
               // Mark as processed even if it already existed
               setProcessedSessions(prev => new Set(prev).add(startKey))
