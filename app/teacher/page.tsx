@@ -119,13 +119,13 @@ export default function TeacherDashboard() {
       const session = activeSession
       if (!session) return
 
-      const { data: studentsData, error: studentsError } = await supabase
+      const { count: studentCount, error: studentsError } = await supabase
         .from("students")
         .select("id", { count: "exact", head: true })
         .eq("class_id", session.class_id)
 
       // Get present count for this session
-      const { data: attendanceData, error: attendanceError } = await supabase
+      const { count: presentCount, error: attendanceError } = await supabase
         .from("attendance_records")
         .select("id", { count: "exact", head: true })
         .eq("session_id", sessionId)
@@ -133,8 +133,8 @@ export default function TeacherDashboard() {
 
       if (!studentsError && !attendanceError) {
         setLiveAttendance({
-          present: attendanceData || 0,
-          totalStudents: studentsData || 0,
+          present: presentCount || 0,
+          totalStudents: studentCount || 0,
           lastUpdated: new Date().toLocaleTimeString(),
         })
       }
@@ -176,13 +176,48 @@ export default function TeacherDashboard() {
 
       console.log(`⏰ Checking scheduled sessions... Current time: ${currentTime}`)
 
+      // Check for auto-stop first (sessions that should end)
+      if (activeSession) {
+        const matchingSchedule = scheduledSessions.find(
+          s => s.class_id === activeSession.class_id && s.subject_id === activeSession.subject_id
+        )
+
+        if (matchingSchedule && matchingSchedule.end_time) {
+          const [endHours, endMinutes] = matchingSchedule.end_time.split(':')
+          const endDate = new Date()
+          endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0)
+
+          const timeDiff = Math.abs(now.getTime() - endDate.getTime()) / 60000 // difference in minutes
+
+          // If within 1 minute of end time, stop the session
+          if (timeDiff <= 1 && now.getTime() >= endDate.getTime()) {
+            console.log(`🛑 Auto-stopping session: ${matchingSchedule.class_name} at ${endHours}:${endMinutes}`)
+
+            try {
+              const { error } = await supabase
+                .from("attendance_sessions")
+                .update({ status: "completed" })
+                .eq("id", activeSession.id)
+
+              if (!error) {
+                console.log("✅ Session auto-stopped successfully")
+                setActiveSession(null)
+                setLiveAttendance(null)
+              }
+            } catch (error) {
+              console.error("❌ Error auto-stopping session:", error)
+            }
+          }
+        }
+      }
+
+      // Check for auto-start (sessions that should begin)
       for (const session of scheduledSessions) {
         // Check if current time matches session start time (within 2-minute window)
         const [schedHours, schedMinutes] = session.start_time.split(':')
         const schedTime = `${schedHours}:${schedMinutes}`
 
         // Parse times for comparison
-        const now = new Date()
         const schedDate = new Date()
         schedDate.setHours(parseInt(schedHours), parseInt(schedMinutes), 0)
 
@@ -264,7 +299,7 @@ export default function TeacherDashboard() {
       }
     }
 
-    // Check every 10 seconds for scheduled sessions to start
+    // Check every 10 seconds for scheduled sessions to start/stop
     const interval = setInterval(checkAndAutoStart, 10000)
 
     return () => clearInterval(interval)
