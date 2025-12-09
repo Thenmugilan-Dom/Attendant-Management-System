@@ -137,12 +137,11 @@ export default function ODRequestPage() {
 
       setTeachersInClass(Object.values(uniqueTeachers));
 
-      // Fetch admins for this specific department
+      // Fetch all admins (show all available admins for the student to choose from)
       const { data: adminsData } = await supabase
         .from('users')
         .select('id, name, email, department')
         .eq('user_type', 'admin')
-        .eq('department', department)
         .limit(100);
 
       setAdminsForDepartment(adminsData || []);
@@ -443,7 +442,7 @@ export default function ODRequestPage() {
                 {/* Admin Selection - Show only if teacher selected */}
                 <div>
                   <Label htmlFor="admin">
-                    Select Admin from {studentData.department} Department *
+                    Select Admin for Final Approval *
                   </Label>
                   {selectedTeacherId ? (
                     adminsForDepartment.length > 0 ? (
@@ -455,7 +454,7 @@ export default function ODRequestPage() {
                         disabled={loading}
                         className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="">Choose an admin from {studentData.department} department...</option>
+                        <option value="">Choose an admin for approval...</option>
                         {adminsForDepartment.map((admin) => (
                           <option key={admin.id} value={admin.id}>
                             {admin.name} ({admin.email})
@@ -465,7 +464,7 @@ export default function ODRequestPage() {
                     ) : (
                       <div className="p-4 mt-2 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800 flex items-start gap-2">
                         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        <span>No admins available for your department ({studentData.department}). Please contact admin.</span>
+                        <span>No admins available at the moment. Please contact admin.</span>
                       </div>
                     )
                   ) : (
