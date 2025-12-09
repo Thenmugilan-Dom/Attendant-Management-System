@@ -156,15 +156,25 @@ export default function StudentAttendancePage() {
         async (decodedText) => {
           // Success callback when QR code is scanned
           try {
-            const scannedData = JSON.parse(decodedText)
-            console.log("📱 QR Code scanned:", scannedData)
+            let sessionCode = ""
             
-            // If the QR code contains only basic session info, we need to fetch complete details
-            if (scannedData.sessionCode || scannedData.sessionId) {
-              console.log("🔄 Fetching complete session details...")
-              
-              // Use sessionCode to get complete session details including timer info
-              const sessionCode = scannedData.sessionCode || scannedData.session_code
+            // Handle both URL format (new) and JSON format (legacy)
+            if (decodedText.startsWith("http")) {
+              // QR code contains a URL like: https://domain.com/student/attendance?session=ABC123
+              console.log("📱 QR Code scanned (URL format):", decodedText)
+              const url = new URL(decodedText)
+              sessionCode = url.searchParams.get('session') || ""
+              console.log("🔍 Extracted session code:", sessionCode)
+            } else {
+              // QR code contains JSON (legacy format)
+              const scannedData = JSON.parse(decodedText)
+              console.log("📱 QR Code scanned (JSON format):", scannedData)
+              sessionCode = scannedData.sessionCode || scannedData.session_code || ""
+            }
+            
+            // Verify session if we have a session code
+            if (sessionCode && sessionCode.length === 8) {
+              console.log("🔄 Fetching complete session details for code:", sessionCode)
               
               if (sessionCode) {
                 const response = await fetch(`/api/attendance/verify-session`, {
