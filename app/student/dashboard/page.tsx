@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Clock, Calendar } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Calendar, X } from 'lucide-react';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -54,6 +54,8 @@ export default function StudentDashboard() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().substring(0, 7));
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDaySessions, setSelectedDaySessions] = useState<AttendanceRecord[]>([]);
 
   useEffect(() => {
     const studentEmail = localStorage.getItem('studentEmail');
@@ -220,6 +222,50 @@ export default function StudentDashboard() {
     return recordDate === selectedMonth;
   });
 
+  // Calendar helper functions
+  const getCalendarDays = () => {
+    const year = parseInt(selectedMonth.split('-')[0]);
+    const month = parseInt(selectedMonth.split('-')[1]) - 1;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    return { daysInMonth, startingDayOfWeek, year, month };
+  };
+
+  const getAttendanceStatusForDate = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const records = filteredAttendance.filter((r) => {
+      const recordDate = r.created_at.split('T')[0];
+      return recordDate === dateStr;
+    });
+
+    if (records.length === 0) return null;
+    
+    // Determine the status: if any on_duty, show on_duty; if any present, show present; otherwise absent
+    if (records.some((r) => r.status === 'on_duty')) return 'on_duty';
+    if (records.some((r) => r.status === 'present')) return 'present';
+    return 'absent';
+  };
+
+  const getDayColor = (status: string | null) => {
+    if (!status) return 'bg-gray-50';
+    if (status === 'present') return 'bg-green-100 border-green-300';
+    if (status === 'absent') return 'bg-red-100 border-red-300';
+    if (status === 'on_duty') return 'bg-purple-100 border-purple-300';
+    return 'bg-gray-50';
+  };
+
+  const handleDateClick = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const sessions = filteredAttendance.filter((r) => r.created_at.split('T')[0] === dateStr);
+    setSelectedDate(date);
+    setSelectedDaySessions(sessions);
+  };
+
+  const { daysInMonth, startingDayOfWeek } = getCalendarDays();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -363,6 +409,165 @@ export default function StudentDashboard() {
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+
+            {/* Calendar View */}
+            <div className="border rounded-lg p-6 bg-white">
+              <h3 className="font-semibold text-lg mb-4">📅 Attendance Calendar</h3>
+              <div className="grid grid-cols-7 gap-2">
+                {/* Day headers */}
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  <div key={day} className="text-center font-bold text-gray-600 py-2">
+                    {day}
+                  </div>
+                ))}
+                {/* Empty cells for days before month starts */}
+                {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+                  <div key={`empty-${i}`} className="aspect-square"></div>
+                ))}
+                {/* Calendar days */}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const day = i + 1;
+                  const date = new Date(selectedMonth + `-${day.toString().padStart(2, '0')}`);
+                  const status = getAttendanceStatusForDate(date);
+                  const isSelected = selectedDate && selectedDate.toDateString() === date.toDateString();
+
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => handleDateClick(date)}
+                      className={`aspect-square flex items-center justify-center rounded-lg border-2 font-semibold text-sm transition-all cursor-pointer ${
+                        getDayColor(status)
+                      } ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''} hover:shadow-md`}
+                    >
+                      <span className="text-gray-700">{day}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Calendar Legend */}
+              <div className="flex flex-wrap gap-4 mt-6 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-green-100 border-2 border-green-300 rounded"></div>
+                  <span className="text-sm text-gray-700">Present</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-red-100 border-2 border-red-300 rounded"></div>
+                  <span className="text-sm text-gray-700">Absent</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-purple-100 border-2 border-purple-300 rounded"></div>
+                  <span className="text-sm text-gray-700">On Duty</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-gray-50 border-2 border-gray-300 rounded"></div>
+                  <span className="text-sm text-gray-700">No Session</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Day Details Modal */}
+            {selectedDate && selectedDaySessions.length > 0 && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <Card className="w-full max-w-md">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>
+                        {selectedDate.toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </CardTitle>
+                      <CardDescription>Period-wise Attendance</CardDescription>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedDate(null);
+                        setSelectedDaySessions([]);
+                      }}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {selectedDaySessions.map((session, idx) => (
+                      <div
+                        key={session.id}
+                        className={`p-3 rounded-lg border-l-4 ${
+                          session.status === 'present'
+                            ? 'bg-green-50 border-l-green-500'
+                            : session.status === 'absent'
+                            ? 'bg-red-50 border-l-red-500'
+                            : 'bg-purple-50 border-l-purple-500'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-800">
+                              Period {idx + 1}
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {session.attendance_sessions?.classes?.class_name || 'N/A'}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {session.attendance_sessions?.subjects?.subject_name || 'N/A'}
+                            </p>
+                          </div>
+                          <span
+                            className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ml-2 ${
+                              session.status === 'present'
+                                ? 'bg-green-200 text-green-800'
+                                : session.status === 'absent'
+                                ? 'bg-red-200 text-red-800'
+                                : 'bg-purple-200 text-purple-800'
+                            }`}
+                          >
+                            {session.status === 'present'
+                              ? '✓ Present'
+                              : session.status === 'absent'
+                              ? '✕ Absent'
+                              : '🎖 On Duty'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Day Details when selected (no sessions) */}
+            {selectedDate && selectedDaySessions.length === 0 && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <Card className="w-full max-w-md">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>
+                        {selectedDate.toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </CardTitle>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedDate(null);
+                        setSelectedDaySessions([]);
+                      }}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600 text-center">No sessions scheduled for this day.</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* Attendance Statistics */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
