@@ -137,18 +137,33 @@ export default function StudentDashboard() {
           session_id,
           student_id,
           status,
-          created_at,
-          attendance_sessions:session_id (
-            session_date,
-            classes (class_name),
-            subjects (subject_name)
-          )
+          created_at
         `)
         .eq('student_id', studentId)
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        setAttendanceRecords(data);
+        // Fetch session details separately for each record
+        const recordsWithSessions = await Promise.all(
+          data.map(async (record: any) => {
+            const { data: sessionData } = await supabase
+              .from('attendance_sessions')
+              .select(`
+                session_date,
+                classes (class_name),
+                subjects (subject_name)
+              `)
+              .eq('id', record.session_id)
+              .limit(1);
+
+            return {
+              ...record,
+              attendance_sessions: sessionData?.[0] || null,
+            };
+          })
+        );
+
+        setAttendanceRecords(recordsWithSessions);
       }
     } catch (error) {
       console.error('Error fetching attendance records:', error);
