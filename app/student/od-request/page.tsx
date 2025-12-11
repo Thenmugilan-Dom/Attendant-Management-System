@@ -118,7 +118,8 @@ export default function ODRequestPage() {
         department: department,
       });
 
-      setClassId(student.class_id);
+      // Store email for dashboard
+      localStorage.setItem('studentEmail', student.email);      setClassId(student.class_id);
       setMessage({ type: 'success', text: `Welcome ${student.name}! Loading OD form...` });
 
       // Fetch teachers for this class
@@ -377,18 +378,28 @@ export default function ODRequestPage() {
           <>
             {/* Welcome Card */}
             <Card className="p-4 mb-6 bg-blue-50 border border-blue-200">
-              <h3 className="font-semibold text-blue-900">
-                Welcome, {studentData.name}
-              </h3>
-              <p className="text-sm text-blue-800 mt-1">
-                Department: <span className="font-medium">{studentData.department}</span>
-              </p>
-              <button
-                onClick={handleBackToEmail}
-                className="text-sm text-blue-600 hover:text-blue-800 underline mt-2"
-              >
-                Use different email
-              </button>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-semibold text-blue-900">
+                    Welcome, {studentData.name}
+                  </h3>
+                  <p className="text-sm text-blue-800 mt-1">
+                    Department: <span className="font-medium">{studentData.department}</span>
+                  </p>
+                  <button
+                    onClick={handleBackToEmail}
+                    className="text-sm text-blue-600 hover:text-blue-800 underline mt-2"
+                  >
+                    Use different email
+                  </button>
+                </div>
+                <button
+                  onClick={() => window.location.href = '/student/dashboard'}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  📊 View Dashboard
+                </button>
+              </div>
             </Card>
 
             {/* OD Form Card */}
