@@ -213,7 +213,8 @@ CREATE TABLE IF NOT EXISTS od_requests (
   subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL,
   teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  od_date DATE NOT NULL,
+  od_start_date DATE NOT NULL,
+  od_end_date DATE NOT NULL,
   reason TEXT NOT NULL,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   teacher_approved BOOLEAN DEFAULT FALSE,
@@ -291,7 +292,8 @@ CREATE INDEX IF NOT EXISTS idx_od_requests_admin ON od_requests(admin_id);
 CREATE INDEX IF NOT EXISTS idx_od_requests_class ON od_requests(class_id);
 CREATE INDEX IF NOT EXISTS idx_od_requests_subject ON od_requests(subject_id);
 CREATE INDEX IF NOT EXISTS idx_od_requests_status ON od_requests(status);
-CREATE INDEX IF NOT EXISTS idx_od_requests_date ON od_requests(od_date);
+CREATE INDEX IF NOT EXISTS idx_od_requests_start_date ON od_requests(od_start_date);
+CREATE INDEX IF NOT EXISTS idx_od_requests_end_date ON od_requests(od_end_date);
 CREATE INDEX IF NOT EXISTS idx_od_requests_teacher_approved ON od_requests(teacher_approved);
 CREATE INDEX IF NOT EXISTS idx_od_requests_admin_approved ON od_requests(admin_approved);
 

@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
       class_id,
       teacher_id,
       admin_id,
-      od_date,
+      od_start_date,
+      od_end_date,
       reason,
     } = await request.json();
 
@@ -24,11 +25,22 @@ export async function POST(request: NextRequest) {
       !class_id ||
       !teacher_id ||
       !admin_id ||
-      !od_date ||
+      !od_start_date ||
+      !od_end_date ||
       !reason
     ) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Validate date range
+    const startDate = new Date(od_start_date);
+    const endDate = new Date(od_end_date);
+    if (startDate > endDate) {
+      return NextResponse.json(
+        { error: 'End date must be after or equal to start date' },
         { status: 400 }
       );
     }
@@ -49,18 +61,19 @@ export async function POST(request: NextRequest) {
 
     const student = studentData[0];
 
-    // Check if OD request already exists for same date
+    // Check if OD request already exists for overlapping dates
     const { data: existingRequest } = await supabase
       .from('od_requests')
       .select('id')
       .eq('student_id', student_id)
-      .eq('od_date', od_date)
+      .gte('od_end_date', od_start_date)
+      .lte('od_start_date', od_end_date)
       .eq('status', 'pending')
       .limit(1);
 
     if (existingRequest && existingRequest.length > 0) {
       return NextResponse.json(
-        { error: 'You already have a pending OD request for this date' },
+        { error: 'You already have a pending OD request that overlaps with this date range' },
         { status: 400 }
       );
     }
@@ -74,7 +87,8 @@ export async function POST(request: NextRequest) {
           class_id: class_id,
           teacher_id: teacher_id,
           admin_id: admin_id,
-          od_date: od_date,
+          od_start_date: od_start_date,
+          od_end_date: od_end_date,
           reason: reason,
           status: 'pending',
           teacher_approved: false,
@@ -122,7 +136,8 @@ export async function POST(request: NextRequest) {
             to: teacher.email,
             studentName: student.name,
             studentEmail: student.email,
-            odDate: od_date,
+            odStartDate: od_start_date,
+            odEndDate: od_end_date,
             reason: reason,
             recipientRole: 'teacher',
             recipientName: teacher.name,
@@ -139,7 +154,8 @@ export async function POST(request: NextRequest) {
             to: admin.email,
             studentName: student.name,
             studentEmail: student.email,
-            odDate: od_date,
+            odStartDate: od_start_date,
+            odEndDate: od_end_date,
             reason: reason,
             recipientRole: 'admin',
             recipientName: admin.name,

@@ -17,14 +17,15 @@ interface User {
 
 interface ODRequest {
   id: string;
-  od_date: string;
+  od_start_date: string;
+  od_end_date: string;
   reason: string;
   status: string;
   teacher_approved: boolean;
   admin_approved: boolean;
   students?: { name: string; email: string }[];
-  subjects?: { subject_name: string }[];
   classes?: { class_name: string }[];
+  duration_days?: number;
 }
 
 export default function AdminODApprovalsPage() {
@@ -64,13 +65,13 @@ export default function AdminODApprovalsPage() {
         .select(
           `
           id,
-          od_date,
+          od_start_date,
+          od_end_date,
           reason,
           status,
           teacher_approved,
           admin_approved,
           students (name, email),
-          subjects (subject_name),
           classes (class_name)
         `
         )
@@ -79,19 +80,27 @@ export default function AdminODApprovalsPage() {
         .order('created_at', { ascending: false })
         .limit(50);
 
+      // Calculate duration for pending requests
+      const pendingWithDuration = (pendingData || []).map((req: any) => ({
+        ...req,
+        duration_days: req.od_start_date && req.od_end_date
+          ? Math.ceil((new Date(req.od_end_date).getTime() - new Date(req.od_start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
+          : 0,
+      }));
+
       // Fetch approved OD requests
       const { data: approvedData } = await supabase
         .from('od_requests')
         .select(
           `
           id,
-          od_date,
+          od_start_date,
+          od_end_date,
           reason,
           status,
           teacher_approved,
           admin_approved,
           students (name, email),
-          subjects (subject_name),
           classes (class_name)
         `
         )
@@ -100,19 +109,27 @@ export default function AdminODApprovalsPage() {
         .order('admin_approved_at', { ascending: false })
         .limit(50);
 
+      // Calculate duration for approved requests
+      const approvedWithDuration = (approvedData || []).map((req: any) => ({
+        ...req,
+        duration_days: req.od_start_date && req.od_end_date
+          ? Math.ceil((new Date(req.od_end_date).getTime() - new Date(req.od_start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
+          : 0,
+      }));
+
       // Fetch rejected OD requests
       const { data: rejectedData } = await supabase
         .from('od_requests')
         .select(
           `
           id,
-          od_date,
+          od_start_date,
+          od_end_date,
           reason,
           status,
           teacher_approved,
           admin_approved,
           students (name, email),
-          subjects (subject_name),
           classes (class_name)
         `
         )
@@ -121,9 +138,17 @@ export default function AdminODApprovalsPage() {
         .order('admin_approved_at', { ascending: false })
         .limit(50);
 
-      setPendingODRequests(pendingData || []);
-      setApprovedODRequests(approvedData || []);
-      setRejectedODRequests(rejectedData || []);
+      // Calculate duration for rejected requests
+      const rejectedWithDuration = (rejectedData || []).map((req: any) => ({
+        ...req,
+        duration_days: req.od_start_date && req.od_end_date
+          ? Math.ceil((new Date(req.od_end_date).getTime() - new Date(req.od_start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
+          : 0,
+      }));
+
+      setPendingODRequests(pendingWithDuration || []);
+      setApprovedODRequests(approvedWithDuration || []);
+      setRejectedODRequests(rejectedWithDuration || []);
     } catch (error) {
       console.error('Error fetching OD requests:', error);
     } finally {
@@ -161,7 +186,6 @@ export default function AdminODApprovalsPage() {
 
   const ODRequestCard = ({ request }: { request: ODRequest }) => {
     const student = request.students?.[0];
-    const subject = request.subjects?.[0];
 
     return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
@@ -170,15 +194,24 @@ export default function AdminODApprovalsPage() {
           <h3 className="font-semibold text-sm sm:text-base">{student?.name}</h3>
           <p className="text-xs sm:text-sm text-muted-foreground">{student?.email}</p>
           <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-            📅 {new Date(request.od_date).toLocaleDateString('en-US', {
+            📅 {new Date(request.od_start_date).toLocaleDateString('en-US', {
               year: 'numeric',
-              month: 'long',
+              month: 'short',
               day: 'numeric',
             })}
+            {request.od_end_date !== request.od_start_date && (
+              <> to {new Date(request.od_end_date).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })}</>
+            )}
           </p>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            📚 {subject?.subject_name}
-          </p>
+          {request.duration_days && (
+            <p className="text-xs sm:text-sm text-blue-600 font-medium">
+              Duration: {request.duration_days} day{request.duration_days > 1 ? 's' : ''}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <div className="text-xs font-medium mb-2">
@@ -276,15 +309,27 @@ export default function AdminODApprovalsPage() {
                       <div key={request.id} className="border border-green-200 bg-green-50 rounded-lg p-4">
                         <div className="flex justify-between items-start gap-4">
                           <div className="flex-1">
-                            <h3 className="font-semibold text-sm sm:text-base">{request.students?.name}</h3>
-                            <p className="text-xs sm:text-sm text-muted-foreground">{request.students?.email}</p>
+                            <h3 className="font-semibold text-sm sm:text-base">{request.students?.[0]?.name}</h3>
+                            <p className="text-xs sm:text-sm text-muted-foreground">{request.students?.[0]?.email}</p>
                             <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-                              📅 {new Date(request.od_date).toLocaleDateString('en-US', {
+                              📅 {new Date(request.od_start_date).toLocaleDateString('en-US', {
                                 year: 'numeric',
-                                month: 'long',
+                                month: 'short',
                                 day: 'numeric',
                               })}
+                              {request.od_end_date !== request.od_start_date && (
+                                <> to {new Date(request.od_end_date).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}</>
+                              )}
                             </p>
+                            {request.duration_days && (
+                              <p className="text-xs sm:text-sm text-blue-600 font-medium">
+                                Duration: {request.duration_days} day{request.duration_days > 1 ? 's' : ''}
+                              </p>
+                            )}
                           </div>
                           <span className="text-green-600 font-semibold">✓ Approved</span>
                         </div>
@@ -313,15 +358,27 @@ export default function AdminODApprovalsPage() {
                       <div key={request.id} className="border border-red-200 bg-red-50 rounded-lg p-4">
                         <div className="flex justify-between items-start gap-4">
                           <div className="flex-1">
-                            <h3 className="font-semibold text-sm sm:text-base">{request.students?.name}</h3>
-                            <p className="text-xs sm:text-sm text-muted-foreground">{request.students?.email}</p>
+                            <h3 className="font-semibold text-sm sm:text-base">{request.students?.[0]?.name}</h3>
+                            <p className="text-xs sm:text-sm text-muted-foreground">{request.students?.[0]?.email}</p>
                             <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-                              📅 {new Date(request.od_date).toLocaleDateString('en-US', {
+                              📅 {new Date(request.od_start_date).toLocaleDateString('en-US', {
                                 year: 'numeric',
-                                month: 'long',
+                                month: 'short',
                                 day: 'numeric',
                               })}
+                              {request.od_end_date !== request.od_start_date && (
+                                <> to {new Date(request.od_end_date).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}</>
+                              )}
                             </p>
+                            {request.duration_days && (
+                              <p className="text-xs sm:text-sm text-blue-600 font-medium">
+                                Duration: {request.duration_days} day{request.duration_days > 1 ? 's' : ''}
+                              </p>
+                            )}
                           </div>
                           <span className="text-red-600 font-semibold">✕ Rejected</span>
                         </div>

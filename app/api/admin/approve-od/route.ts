@@ -31,10 +31,10 @@ export async function POST(request: NextRequest) {
         student_id,
         teacher_approved,
         admin_id,
-        od_date,
+        od_start_date,
+        od_end_date,
         reason,
         students (id, name, email),
-        subjects (id, subject_name),
         classes (id, class_name)
       `
       )
@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
 
     const request_ = odRequest[0];
     const student = request_.students?.[0];
-    const subject = request_.subjects?.[0];
     const classData = request_.classes?.[0];
 
     // Verify admin is the one assigned to this request
@@ -81,14 +80,12 @@ export async function POST(request: NextRequest) {
 
     // Check if both teacher and admin have approved
     if (approved && request_.teacher_approved) {
-      // Mark attendance as on_duty
-      if (subject?.id) {
-        await markODAttendance(
-          request_.student_id,
-          subject.id,
-          request_.od_date
-        );
-      }
+      // Mark attendance as on_duty for all dates in the OD period
+      await markODAttendance(
+        request_.student_id,
+        request_.od_start_date,
+        request_.od_end_date
+      );
 
       // Update OD request status to approved
       await supabase
@@ -107,8 +104,8 @@ export async function POST(request: NextRequest) {
               body: JSON.stringify({
                 to: student.email,
                 studentName: student.name,
-                odDate: request_.od_date,
-                subjectName: subject?.subject_name,
+                odStartDate: request_.od_start_date,
+                odEndDate: request_.od_end_date,
                 className: classData?.class_name,
                 status: 'approved',
               }),
@@ -136,8 +133,8 @@ export async function POST(request: NextRequest) {
               body: JSON.stringify({
                 to: student.email,
                 studentName: student.name,
-                odDate: request_.od_date,
-                subjectName: subject?.subject_name,
+                odStartDate: request_.od_start_date,
+                odEndDate: request_.od_end_date,
                 className: classData?.class_name,
                 status: 'rejected',
                 rejectionReason: approvalNotes || 'Request rejected',
@@ -169,17 +166,17 @@ export async function POST(request: NextRequest) {
 
 async function markODAttendance(
   studentId: string,
-  subjectId: string,
-  odDate: string
+  odStartDate: string,
+  odEndDate: string
 ) {
   try {
-    // Find all sessions for this subject on the given date
+    // Get all attendance sessions between the OD start and end dates
     const { data: sessions } = await supabase
       .from('attendance_sessions')
-      .select('id')
-      .eq('subject_id', subjectId)
-      .eq('session_date', odDate)
-      .limit(100);
+      .select('id, session_date')
+      .gte('session_date', odStartDate)
+      .lte('session_date', odEndDate)
+      .limit(1000);
 
     if (sessions && sessions.length > 0) {
       // Create or update attendance records for all sessions as on_duty

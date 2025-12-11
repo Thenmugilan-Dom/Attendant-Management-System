@@ -36,12 +36,13 @@ interface StudentData {
 
 interface ODRequest {
   id: string;
-  od_date: string;
+  od_start_date: string;
+  od_end_date: string;
   reason: string;
   status: string;
   teacher_approved: boolean;
   admin_approved: boolean;
-  subjects?: { subject_name: string }[];
+  duration_days?: number;
 }
 
 export default function ODRequestPage() {
@@ -56,7 +57,8 @@ export default function ODRequestPage() {
   const [adminsForDepartment, setAdminsForDepartment] = useState<Admin[]>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [selectedAdminId, setSelectedAdminId] = useState<string>('');
-  const [odDate, setOdDate] = useState<string>('');
+  const [odStartDate, setOdStartDate] = useState<string>('');
+  const [odEndDate, setOdEndDate] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [odRequests, setOdRequests] = useState<ODRequest[]>([]);
 
@@ -151,7 +153,8 @@ export default function ODRequestPage() {
         .from('od_requests')
         .select(`
           id,
-          od_date,
+          od_start_date,
+          od_end_date,
           reason,
           status,
           teacher_approved,
@@ -163,7 +166,9 @@ export default function ODRequestPage() {
 
       setOdRequests((odRequestsData || []).map((req: any) => ({
         ...req,
-        subjects: []
+        duration_days: req.od_start_date && req.od_end_date 
+          ? Math.ceil((new Date(req.od_end_date).getTime() - new Date(req.od_start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
+          : 0
       })));
 
       // Move to form step after 1 second
@@ -192,8 +197,15 @@ export default function ODRequestPage() {
         return;
       }
 
-      if (!selectedTeacherId || !selectedAdminId || !odDate || !reason.trim()) {
+      if (!selectedTeacherId || !selectedAdminId || !odStartDate || !odEndDate || !reason.trim()) {
         setMessage({ type: 'error', text: 'Please fill all required fields' });
+        setLoading(false);
+        return;
+      }
+
+      // Validate date range
+      if (new Date(odStartDate) > new Date(odEndDate)) {
+        setMessage({ type: 'error', text: 'End date must be after or equal to start date' });
         setLoading(false);
         return;
       }
@@ -207,7 +219,8 @@ export default function ODRequestPage() {
           class_id: classId,
           teacher_id: selectedTeacherId,
           admin_id: selectedAdminId,
-          od_date: odDate,
+          od_start_date: odStartDate,
+          od_end_date: odEndDate,
           reason: reason,
         }),
       });
@@ -221,7 +234,8 @@ export default function ODRequestPage() {
       setMessage({ type: 'success', text: 'OD request submitted successfully!' });
 
       // Reset form
-      setOdDate('');
+      setOdStartDate('');
+      setOdEndDate('');
       setReason('');
       setSelectedTeacherId('');
       setSelectedAdminId('');
@@ -231,7 +245,8 @@ export default function ODRequestPage() {
         .from('od_requests')
         .select(`
           id,
-          od_date,
+          od_start_date,
+          od_end_date,
           reason,
           status,
           teacher_approved,
@@ -243,7 +258,9 @@ export default function ODRequestPage() {
 
       setOdRequests((updatedRequests || []).map((req: any) => ({
         ...req,
-        subjects: []
+        duration_days: req.od_start_date && req.od_end_date 
+          ? Math.ceil((new Date(req.od_end_date).getTime() - new Date(req.od_start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
+          : 0
       })));
     } catch (error) {
       console.error('Error submitting OD request:', error);
@@ -262,7 +279,8 @@ export default function ODRequestPage() {
     setStudentData(null);
     setSelectedTeacherId('');
     setSelectedAdminId('');
-    setOdDate('');
+    setOdStartDate('');
+    setOdEndDate('');
     setReason('');
     setMessage(null);
   };
@@ -395,19 +413,39 @@ export default function ODRequestPage() {
               )}
 
               <form onSubmit={handleFormSubmit} className="space-y-6">
-                {/* OD Date */}
+                {/* OD Start Date */}
                 <div>
-                  <Label htmlFor="od-date">OD Date *</Label>
+                  <Label htmlFor="od-start-date">OD Start Date *</Label>
                   <Input
-                    id="od-date"
+                    id="od-start-date"
                     type="date"
-                    value={odDate}
-                    onChange={(e) => setOdDate(e.target.value)}
+                    value={odStartDate}
+                    onChange={(e) => setOdStartDate(e.target.value)}
                     required
                     disabled={loading}
                     min={new Date().toISOString().split('T')[0]}
                     className="mt-2"
                   />
+                </div>
+
+                {/* OD End Date */}
+                <div>
+                  <Label htmlFor="od-end-date">OD End Date *</Label>
+                  <Input
+                    id="od-end-date"
+                    type="date"
+                    value={odEndDate}
+                    onChange={(e) => setOdEndDate(e.target.value)}
+                    required
+                    disabled={loading}
+                    min={odStartDate || new Date().toISOString().split('T')[0]}
+                    className="mt-2"
+                  />
+                  {odStartDate && odEndDate && (
+                    <p className="text-sm text-blue-600 mt-2">
+                      Duration: {Math.ceil((new Date(odEndDate).getTime() - new Date(odStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} day(s)
+                    </p>
+                  )}
                 </div>
 
                 {/* Teacher Selection */}
@@ -512,13 +550,25 @@ export default function ODRequestPage() {
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <h3 className="font-semibold text-gray-800">
-                            {new Date(request.od_date).toLocaleDateString('en-US', {
+                            {new Date(request.od_start_date).toLocaleDateString('en-US', {
                               year: 'numeric',
-                              month: 'long',
+                              month: 'short',
                               day: 'numeric',
                             })}
+                            {request.od_end_date !== request.od_start_date && (
+                              <> to {new Date(request.od_end_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })}</>
+                            )}
                           </h3>
                           <p className="text-sm text-gray-600 mt-1">{request.reason}</p>
+                          {request.duration_days && (
+                            <p className="text-xs text-blue-600 mt-1 font-medium">
+                              Duration: {request.duration_days} day{request.duration_days > 1 ? 's' : ''}
+                            </p>
+                          )}
                         </div>
                         {getStatusBadge(request)}
                       </div>
