@@ -770,7 +770,7 @@ export default function AdminManagementPage() {
             onClick={() => setActiveTab("assignments")}
           >
             <Link2 className="h-4 w-4 mr-2" />
-            Assignments
+            Mapping
           </Button>
           <Button
             variant={activeTab === "students" ? "default" : "outline"}
@@ -1080,18 +1080,18 @@ export default function AdminManagementPage() {
           </Card>
         )}
 
-        {/* Assignments Tab */}
+        {/* Mapping Tab */}
         {activeTab === "assignments" && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Manage Teacher Assignments</CardTitle>
+                  <CardTitle>Manage Teacher Mapping</CardTitle>
                   <CardDescription>Assign teachers to subjects and classes</CardDescription>
                 </div>
                 <Button onClick={openAddDialog}>
                   <Plus className="h-4 w-4 mr-2" />
-                  New Assignment
+                  New Mapping
                 </Button>
               </div>
             </CardHeader>
@@ -1176,7 +1176,7 @@ export default function AdminManagementPage() {
                       <Input
                         id="student_id"
                         name="student_id"
-                        defaultValue={selectedItem?.student_id}
+                        defaultValue={(selectedItem as Student)?.student_id}
                         placeholder="e.g., STU001, 2024BCA001"
                         required
                         disabled={dialogMode === "edit"}
@@ -1192,7 +1192,7 @@ export default function AdminManagementPage() {
                       <Input
                         id="name"
                         name="name"
-                        defaultValue={selectedItem?.name}
+                        defaultValue={(selectedItem as Student)?.name}
                         placeholder="e.g., John Doe"
                         required
                       />
@@ -1203,7 +1203,7 @@ export default function AdminManagementPage() {
                         id="email"
                         name="email"
                         type="email"
-                        defaultValue={selectedItem?.email}
+                        defaultValue={(selectedItem as Student)?.email}
                         placeholder="student@example.com"
                         required
                       />
@@ -1213,7 +1213,7 @@ export default function AdminManagementPage() {
                       <select
                         id="class_id"
                         name="class_id"
-                        defaultValue={selectedItem?.class_id || ""}
+                        defaultValue={(selectedItem as Student)?.class_id || ""}
                         required
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -1232,7 +1232,7 @@ export default function AdminManagementPage() {
                         id="phone"
                         name="phone"
                         type="tel"
-                        defaultValue={selectedItem?.phone}
+                        defaultValue={(selectedItem as Student)?.phone}
                         placeholder="e.g., +91 98765 43210"
                       />
                     </div>
@@ -1241,7 +1241,7 @@ export default function AdminManagementPage() {
                       <Input
                         id="address"
                         name="address"
-                        defaultValue={selectedItem?.address}
+                        defaultValue={(selectedItem as Student)?.address}
                         placeholder="Student's address"
                       />
                     </div>
@@ -1250,7 +1250,7 @@ export default function AdminManagementPage() {
                       <Input
                         id="parent_name"
                         name="parent_name"
-                        defaultValue={selectedItem?.parent_name}
+                        defaultValue={(selectedItem as Student)?.parent_name}
                         placeholder="e.g., Jane Doe"
                       />
                     </div>
@@ -1260,7 +1260,7 @@ export default function AdminManagementPage() {
                         id="parent_phone"
                         name="parent_phone"
                         type="tel"
-                        defaultValue={selectedItem?.parent_phone}
+                        defaultValue={(selectedItem as Student)?.parent_phone}
                         placeholder="e.g., +91 98765 43210"
                       />
                     </div>
@@ -1269,7 +1269,7 @@ export default function AdminManagementPage() {
                       <select
                         id="status"
                         name="status"
-                        defaultValue={selectedItem?.status || "active"}
+                        defaultValue={(selectedItem as Student)?.status || "active"}
                         required
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -1293,7 +1293,7 @@ export default function AdminManagementPage() {
                       <Input
                         id="class_name"
                         name="class_name"
-                        defaultValue={selectedItem?.class_name}
+                        defaultValue={(selectedItem as Class)?.class_name}
                         placeholder="e.g., BCA, MCA, B.Sc CS"
                         required
                       />
@@ -1303,7 +1303,7 @@ export default function AdminManagementPage() {
                       <Input
                         id="section"
                         name="section"
-                        defaultValue={selectedItem?.section}
+                        defaultValue={(selectedItem as Class)?.section}
                         placeholder="e.g., A, B, C"
                       />
                     </div>
@@ -1315,7 +1315,7 @@ export default function AdminManagementPage() {
                         type="number"
                         min="1"
                         max="5"
-                        defaultValue={selectedItem?.year}
+                        defaultValue={(selectedItem as Class)?.year}
                         placeholder="e.g., 1, 2, 3"
                       />
                     </div>
@@ -1340,7 +1340,7 @@ export default function AdminManagementPage() {
                       <Input
                         id="subject_code"
                         name="subject_code"
-                        defaultValue={selectedItem?.subject_code}
+                        defaultValue={(selectedItem as Subject)?.subject_code}
                         placeholder="e.g., CS101, MATH201"
                         required
                         disabled={dialogMode === "edit"}
@@ -1351,7 +1351,7 @@ export default function AdminManagementPage() {
                       <Input
                         id="subject_name"
                         name="subject_name"
-                        defaultValue={selectedItem?.subject_name}
+                        defaultValue={(selectedItem as Subject)?.subject_name}
                         placeholder="e.g., Data Structures"
                         required
                       />
@@ -1364,7 +1364,7 @@ export default function AdminManagementPage() {
                         type="number"
                         min="1"
                         max="10"
-                        defaultValue={selectedItem?.credits}
+                        defaultValue={(selectedItem as Subject)?.credits}
                         placeholder="e.g., 3, 4"
                       />
                     </div>
@@ -1376,7 +1376,7 @@ export default function AdminManagementPage() {
                         type="number"
                         min="1"
                         max="8"
-                        defaultValue={selectedItem?.semester}
+                        defaultValue={(selectedItem as Subject)?.semester}
                         placeholder="e.g., 1, 2"
                       />
                     </div>
@@ -1659,7 +1659,7 @@ export default function AdminManagementPage() {
                   <div className="space-y-2">
                     <div>
                       <Label className="text-xs text-gray-500">Email</Label>
-                      <p className="font-mono text-sm">{selectedItem?.email}</p>
+                      <p className="font-mono text-sm">{(selectedItem as Teacher)?.email}</p>
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500">Password</Label>
@@ -1677,7 +1677,7 @@ export default function AdminManagementPage() {
               </div>
               <DialogFooter>
                 <Button onClick={() => {
-                  navigator.clipboard.writeText(`Email: ${selectedItem?.email}\nPassword: ${generatedPassword}`)
+                  navigator.clipboard.writeText(`Email: ${(selectedItem as Teacher)?.email}\nPassword: ${generatedPassword}`)
                   alert("Credentials copied to clipboard!")
                 }}>
                   Copy Credentials
