@@ -1484,53 +1484,67 @@ The system includes automatic session creation. To enable it:
 -- This happens when there are duplicate classes or subjects
 -- ═══════════════════════════════════════════════════════════════════════
 
--- STEP 1: Remove duplicate classes (keep only the latest one for each combination)
--- First, identify and keep only the most recent record for each class combination
+-- ⚠️ STEP 0: First, disable foreign keys and constraints that might block deletion
 BEGIN;
 
--- Create a temporary table with the IDs to keep
-CREATE TEMP TABLE classes_to_keep AS
-SELECT DISTINCT ON (class_name, section, year) id
-FROM classes
-ORDER BY class_name, section, year, created_at DESC;
-
--- Delete everything that's NOT in the keep list
-DELETE FROM classes 
-WHERE id NOT IN (SELECT id FROM classes_to_keep);
-
-SELECT 'Removed duplicate classes' as status;
-
-COMMIT;
-
--- STEP 2: Remove duplicate subjects (keep only the latest one for each code)
--- First, identify and keep only the most recent record for each subject
-BEGIN;
-
--- Create a temporary table with the IDs to keep
-CREATE TEMP TABLE subjects_to_keep AS
-SELECT DISTINCT ON (subject_code) id
-FROM subjects
-ORDER BY subject_code, created_at DESC;
-
--- Delete everything that's NOT in the keep list
-DELETE FROM subjects 
-WHERE id NOT IN (SELECT id FROM subjects_to_keep);
-
-SELECT 'Removed duplicate subjects' as status;
-
-COMMIT;
-
--- STEP 3: Drop old constraints that include department
-BEGIN;
-
--- For classes table: drop BOTH old and new constraints to recreate cleanly
+-- Drop any existing constraints on classes table
 ALTER TABLE classes 
 DROP CONSTRAINT IF EXISTS classes_class_name_section_year_department_key CASCADE;
 
 ALTER TABLE classes 
 DROP CONSTRAINT IF EXISTS classes_class_name_section_year_key CASCADE;
 
--- Create new constraint without department (now that duplicates are removed)
+-- Drop any existing constraints on subjects table
+ALTER TABLE subjects 
+DROP CONSTRAINT IF EXISTS subjects_subject_code_department_key CASCADE;
+
+ALTER TABLE subjects 
+DROP CONSTRAINT IF EXISTS subjects_subject_code_key CASCADE;
+
+SELECT '✅ Old constraints dropped' as status;
+
+COMMIT;
+
+-- STEP 1: Remove duplicate classes (keep only the latest one for each combination)
+BEGIN;
+
+WITH duplicates AS (
+  SELECT 
+    id,
+    ROW_NUMBER() OVER (PARTITION BY class_name, section, year ORDER BY created_at DESC) as rn
+  FROM classes
+)
+DELETE FROM classes 
+WHERE id IN (
+  SELECT id FROM duplicates WHERE rn > 1
+);
+
+SELECT 'Removed duplicate classes' as status;
+
+COMMIT;
+
+-- STEP 2: Remove duplicate subjects (keep only the latest one for each code)
+BEGIN;
+
+WITH duplicates AS (
+  SELECT 
+    id,
+    ROW_NUMBER() OVER (PARTITION BY subject_code ORDER BY created_at DESC) as rn
+  FROM subjects
+)
+DELETE FROM subjects 
+WHERE id IN (
+  SELECT id FROM duplicates WHERE rn > 1
+);
+
+SELECT 'Removed duplicate subjects' as status;
+
+COMMIT;
+
+-- STEP 3: Create new unique constraints
+BEGIN;
+
+-- For classes table: create constraint without department
 ALTER TABLE classes 
 ADD CONSTRAINT classes_class_name_section_year_key 
 UNIQUE (class_name, section, year);
@@ -1541,14 +1555,7 @@ COMMIT;
 
 BEGIN;
 
--- For subjects table: drop BOTH old and new constraints to recreate cleanly
-ALTER TABLE subjects 
-DROP CONSTRAINT IF EXISTS subjects_subject_code_department_key CASCADE;
-
-ALTER TABLE subjects 
-DROP CONSTRAINT IF EXISTS subjects_subject_code_key CASCADE;
-
--- Create new constraint without department (now that duplicates are removed)
+-- For subjects table: create constraint without department
 ALTER TABLE subjects 
 ADD CONSTRAINT subjects_subject_code_key 
 UNIQUE (subject_code);
