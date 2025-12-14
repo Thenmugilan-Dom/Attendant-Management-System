@@ -1489,9 +1489,9 @@ BEGIN;
 
 DELETE FROM classes 
 WHERE id NOT IN (
-  SELECT MAX(id) 
-  FROM classes 
-  GROUP BY class_name, section, year
+  SELECT DISTINCT ON (class_name, section, year) id
+  FROM classes
+  ORDER BY class_name, section, year, created_at DESC
 );
 
 SELECT 'Removed duplicate classes' as status;
@@ -1503,9 +1503,9 @@ BEGIN;
 
 DELETE FROM subjects 
 WHERE id NOT IN (
-  SELECT MAX(id) 
-  FROM subjects 
-  GROUP BY subject_code
+  SELECT DISTINCT ON (subject_code) id
+  FROM subjects
+  ORDER BY subject_code, created_at DESC
 );
 
 SELECT 'Removed duplicate subjects' as status;
