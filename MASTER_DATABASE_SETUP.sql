@@ -708,16 +708,22 @@ ORDER BY tc.table_name, kcu.column_name;
 
 
 -- ═══════════════════════════════════════════════════════════════════════
--- SECTION 8: CREATE DEFAULT ADMIN USER
+-- SECTION 8: CREATE DEPARTMENT-BASED ADMIN USERS
 -- ═══════════════════════════════════════════════════════════════════════
 
-SELECT '═══════════════════════════════════════' as info;
-SELECT '👤 CREATING DEFAULT ADMIN USER' as info;
-SELECT '═══════════════════════════════════════' as info;
+SELECT '═══════════════════════════════════════════════════════════════════════' as info;
+SELECT '👤 CREATING DEPARTMENT-BASED ADMIN USERS' as info;
+SELECT '═══════════════════════════════════════════════════════════════════════' as info;
+SELECT '' as info;
+SELECT '⚠️ IMPORTANT: Each admin manages ONLY their assigned department' as info;
+SELECT '   - Computer Science Admin sees only CS classes/students/teachers' as info;
+SELECT '   - IT Admin sees only IT classes/students/teachers' as info;
+SELECT '   - Other Department Admin sees only their department resources' as info;
+SELECT '' as info;
 
 
 -- ───────────────────────────────────────────────────────────────────────
--- 8.1 Create Admin User
+-- 8.1 Computer Science Department Admin
 -- ───────────────────────────────────────────────────────────────────────
 
 INSERT INTO users (
@@ -728,26 +734,39 @@ INSERT INTO users (
   user_type,
   role,
   department,
+  phone,
   status
 ) VALUES (
-  'admin@kprcas.ac.in',
-  'System Administrator',
+  'cs-admin@kprcas.ac.in',
+  'Computer Science Admin',
+  'cs_admin',
+  'CS@Admin123',
   'admin',
-  'admin@123',
   'admin',
-  'admin',
-  'Administration',
+  'Computer Science',
+  '+91-9000000001',
   'active'
 ) 
 ON CONFLICT (email) 
 DO UPDATE SET 
-  plain_password = 'admin@123',
+  plain_password = 'CS@Admin123',
   user_type = 'admin',
   role = 'admin',
+  department = 'Computer Science',
   status = 'active',
-  updated_at = NOW();
+  updated_at = NOW()
+RETURNING email, name, department, plain_password;
 
-  INSERT INTO users (
+SELECT '✅ Computer Science Admin Created' as status;
+SELECT '   Email: cs-admin@kprcas.ac.in | Department: Computer Science' as details;
+SELECT '' as spacer;
+
+
+-- ───────────────────────────────────────────────────────────────────────
+-- 8.2 Information Technology Department Admin
+-- ───────────────────────────────────────────────────────────────────────
+
+INSERT INTO users (
   email,
   name,
   username,
@@ -755,53 +774,235 @@ DO UPDATE SET
   user_type,
   role,
   department,
+  phone,
   status
 ) VALUES (
-  'admin01@kprcas.ac.in',           -- Change this email
-  'Admin',                 -- Change this name
-  'admin1',              -- Change this username
-  'admin01@123',                -- Change this password
+  'it-admin@kprcas.ac.in',
+  'Information Technology Admin',
+  'it_admin',
+  'IT@Admin123',
   'admin',
   'admin',
-  'Administration',                  -- Change department if needed,     
+  'Information Technology',
+  '+91-9000000002',
   'active'
 ) 
 ON CONFLICT (email) 
 DO UPDATE SET 
-  plain_password = 'admin01@123',
+  plain_password = 'IT@Admin123',
   user_type = 'admin',
   role = 'admin',
+  department = 'Information Technology',
   status = 'active',
   updated_at = NOW()
-RETURNING id, email, name, user_type, role, plain_password;
+RETURNING email, name, department, plain_password;
+
+SELECT '✅ IT Admin Created' as status;
+SELECT '   Email: it-admin@kprcas.ac.in | Department: Information Technology' as details;
+SELECT '' as spacer;
 
 
 -- ───────────────────────────────────────────────────────────────────────
--- 8.2 Verify Admin User Created
+-- 8.3 Master of Science Admin
 -- ───────────────────────────────────────────────────────────────────────
 
-SELECT '✅ ADMIN USER DETAILS:' as info;
-
-SELECT 
+INSERT INTO users (
   email,
   name,
   username,
   plain_password,
   user_type,
   role,
+  department,
+  phone,
+  status
+) VALUES (
+  'msc-admin@kprcas.ac.in',
+  'Master of Science Admin',
+  'msc_admin',
+  'MSC@Admin123',
+  'admin',
+  'admin',
+  'Master of Science',
+  '+91-9000000003',
+  'active'
+) 
+ON CONFLICT (email) 
+DO UPDATE SET 
+  plain_password = 'MSC@Admin123',
+  user_type = 'admin',
+  role = 'admin',
+  department = 'Master of Science',
+  status = 'active',
+  updated_at = NOW()
+RETURNING email, name, department, plain_password;
+
+SELECT '✅ MSC Admin Created' as status;
+SELECT '   Email: msc-admin@kprcas.ac.in | Department: Master of Science' as details;
+SELECT '' as spacer;
+
+
+-- ───────────────────────────────────────────────────────────────────────
+-- 8.4 Bachelor of Computer Applications Admin
+-- ───────────────────────────────────────────────────────────────────────
+
+INSERT INTO users (
+  email,
+  name,
+  username,
+  plain_password,
+  user_type,
+  role,
+  department,
+  phone,
+  status
+) VALUES (
+  'bca-admin@kprcas.ac.in',
+  'Bachelor of Computer Applications Admin',
+  'bca_admin',
+  'BCA@Admin123',
+  'admin',
+  'admin',
+  'Bachelor of Computer Applications',
+  '+91-9000000004',
+  'active'
+) 
+ON CONFLICT (email) 
+DO UPDATE SET 
+  plain_password = 'BCA@Admin123',
+  user_type = 'admin',
+  role = 'admin',
+  department = 'Bachelor of Computer Applications',
+  status = 'active',
+  updated_at = NOW()
+RETURNING email, name, department, plain_password;
+
+SELECT '✅ BCA Admin Created' as status;
+SELECT '   Email: bca-admin@kprcas.ac.in | Department: Bachelor of Computer Applications' as details;
+SELECT '' as spacer;
+
+
+-- ───────────────────────────────────────────────────────────────────────
+-- 8.5 System/Super Admin (Optional - can see all departments)
+-- ───────────────────────────────────────────────────────────────────────
+
+INSERT INTO users (
+  email,
+  name,
+  username,
+  plain_password,
+  user_type,
+  role,
+  department,
+  phone,
+  status
+) VALUES (
+  'admin@kprcas.ac.in',
+  'System Administrator',
+  'admin',
+  'Admin@123',
+  'admin',
+  'admin',
+  'Administration',
+  '+91-9000000000',
+  'active'
+) 
+ON CONFLICT (email) 
+DO UPDATE SET 
+  plain_password = 'Admin@123',
+  user_type = 'admin',
+  role = 'admin',
+  department = 'Administration',
+  status = 'active',
+  updated_at = NOW()
+RETURNING email, name, department, plain_password;
+
+SELECT '✅ System Admin Created' as status;
+SELECT '   Email: admin@kprcas.ac.in | Department: Administration' as details;
+SELECT '' as spacer;
+
+
+-- ───────────────────────────────────────────────────────────────────────
+-- 8.6 Verify All Admin Users Created
+-- ───────────────────────────────────────────────────────────────────────
+
+SELECT '═══════════════════════════════════════════════════════════════════════' as info;
+SELECT '✅ ALL ADMIN USERS CREATED - DEPARTMENT ISOLATION ACTIVE' as info;
+SELECT '═══════════════════════════════════════════════════════════════════════' as info;
+SELECT '' as info;
+
+SELECT 
+  email,
+  name,
+  username,
+  plain_password,
+  department,
   status,
   created_at
 FROM users 
-WHERE email = 'admin@kprcas.ac.in';
+WHERE user_type = 'admin'
+ORDER BY department, email;
+
+SELECT '' as info;
+SELECT '📋 ADMIN ACCESS LEVELS:' as info;
+SELECT '   • Computer Science Admin → Manages CS department only' as info;
+SELECT '   • IT Admin → Manages IT department only' as info;
+SELECT '   • MSC Admin → Manages Master of Science department only' as info;
+SELECT '   • BCA Admin → Manages BCA department only' as info;
+SELECT '   • System Admin → Full system access (Administration)' as info;
+SELECT '' as info;
 
 
-SELECT '═══════════════════════════════════════' as info;
-SELECT '🔐 ADMIN LOGIN CREDENTIALS' as info;
-SELECT '═══════════════════════════════════════' as info;
-SELECT 'Email: admin@kprcas.ac.in' as credential;
-SELECT 'Password: admin@123 (for reference only)' as credential;
-SELECT 'Note: System uses OTP login, not password' as credential;
-SELECT '═══════════════════════════════════════' as info;
+SELECT '═══════════════════════════════════════════════════════════════════════' as info;
+SELECT '🔐 ADMIN LOGIN CREDENTIALS (Department-Based)' as info;
+SELECT '═══════════════════════════════════════════════════════════════════════' as info;
+SELECT '' as info;
+
+SELECT '📌 COMPUTER SCIENCE DEPARTMENT:' as credential_header;
+SELECT '   Email: cs-admin@kprcas.ac.in' as credential;
+SELECT '   Password: CS@Admin123 (for reference)' as credential;
+SELECT '   Department: Computer Science' as credential;
+SELECT '   Access: CS classes, subjects, students, teachers only' as credential;
+SELECT '' as spacer;
+
+SELECT '📌 INFORMATION TECHNOLOGY DEPARTMENT:' as credential_header;
+SELECT '   Email: it-admin@kprcas.ac.in' as credential;
+SELECT '   Password: IT@Admin123 (for reference)' as credential;
+SELECT '   Department: Information Technology' as credential;
+SELECT '   Access: IT classes, subjects, students, teachers only' as credential;
+SELECT '' as spacer;
+
+SELECT '📌 MASTER OF SCIENCE DEPARTMENT:' as credential_header;
+SELECT '   Email: msc-admin@kprcas.ac.in' as credential;
+SELECT '   Password: MSC@Admin123 (for reference)' as credential;
+SELECT '   Department: Master of Science' as credential;
+SELECT '   Access: MSC classes, subjects, students, teachers only' as credential;
+SELECT '' as spacer;
+
+SELECT '📌 BACHELOR OF COMPUTER APPLICATIONS DEPARTMENT:' as credential_header;
+SELECT '   Email: bca-admin@kprcas.ac.in' as credential;
+SELECT '   Password: BCA@Admin123 (for reference)' as credential;
+SELECT '   Department: Bachelor of Computer Applications' as credential;
+SELECT '   Access: BCA classes, subjects, students, teachers only' as credential;
+SELECT '' as spacer;
+
+SELECT '📌 SYSTEM ADMINISTRATOR:' as credential_header;
+SELECT '   Email: admin@kprcas.ac.in' as credential;
+SELECT '   Password: Admin@123 (for reference)' as credential;
+SELECT '   Department: Administration' as credential;
+SELECT '   Access: Full system access (future: all departments)' as credential;
+SELECT '' as spacer;
+
+SELECT '═══════════════════════════════════════════════════════════════════════' as info;
+SELECT '⚠️ KEY POINTS:' as info;
+SELECT '═══════════════════════════════════════════════════════════════════════' as info;
+SELECT '   ✅ Each admin manages ONLY their department' as point;
+SELECT '   ✅ System uses OTP login (passwords for reference only)' as point;
+SELECT '   ✅ Department isolation is automatic & enforced at API level' as point;
+SELECT '   ✅ CS admin CANNOT see IT classes, teachers, or students' as point;
+SELECT '   ✅ IT admin CANNOT see CS classes, teachers, or students' as point;
+SELECT '   ✅ Each department has complete isolation' as point;
+SELECT '' as info;
 
 
 -- ═══════════════════════════════════════════════════════════════════════
