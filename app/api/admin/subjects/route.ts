@@ -82,15 +82,28 @@ export async function POST(req: NextRequest) {
       insertData.department = department;
     }
 
-    const { data, error } = await supabaseAdmin
+    let result = await supabaseAdmin
       .from('subjects')
       .insert(insertData)
       .select()
       .single();
 
+    // If department column error, retry without it
+    if (result.error && result.error.message.includes('department')) {
+      console.log('⚠️ Department column not found, retrying without it');
+      delete insertData.department;
+      result = await supabaseAdmin
+        .from('subjects')
+        .insert(insertData)
+        .select()
+        .single();
+    }
+
+    const { data, error } = result;
+
     if (error) {
-      console.error('❌ Error creating subject:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('❌ Error creating subject:', error.message);
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     console.log('✅ Created subject:', data?.id);

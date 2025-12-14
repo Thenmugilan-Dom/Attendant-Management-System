@@ -88,18 +88,32 @@ export async function POST(request: NextRequest) {
       total_students: 0,
     }
 
-    // Add department if provided (column might not exist yet)
+    // Try to add department if provided
+    // If the column doesn't exist, Supabase will error on insert
+    // In that case, we'll retry without department
     if (department) {
       insertData.department = department
     }
 
-    const { data, error } = await supabaseAdmin
+    let result = await supabaseAdmin
       .from('classes')
       .insert([insertData])
       .select()
 
+    // If we get a schema error about department column, retry without it
+    if (result.error && result.error.message.includes('department')) {
+      console.log('⚠️ Department column not found, retrying without it')
+      delete insertData.department
+      result = await supabaseAdmin
+        .from('classes')
+        .insert([insertData])
+        .select()
+    }
+
+    const { data, error } = result
+
     if (error) {
-      console.error('❌ Error creating class:', error)
+      console.error('❌ Error creating class:', error.message)
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
