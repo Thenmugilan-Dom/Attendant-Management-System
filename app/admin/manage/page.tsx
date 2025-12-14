@@ -36,6 +36,7 @@ interface User {
   email: string
   role: string
   name?: string
+  department?: string
 }
 
 interface Class {
@@ -45,6 +46,7 @@ interface Class {
   year?: number
   total_students: number
   department?: string
+  class_email?: string
 }
 
 interface Subject {
@@ -855,13 +857,14 @@ export default function AdminManagementPage() {
                     <TableHead>Section</TableHead>
                     <TableHead>Year</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead>Class Email</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {classes.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
                         No classes found. Click &quot;Add Class&quot; to create one.
                       </TableCell>
                     </TableRow>
@@ -872,6 +875,7 @@ export default function AdminManagementPage() {
                         <TableCell>{cls.section || "-"}</TableCell>
                         <TableCell>{cls.year || "-"}</TableCell>
                         <TableCell>{cls.department || "General"}</TableCell>
+                        <TableCell className="text-sm font-mono">{cls.class_email || "-"}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
@@ -1378,9 +1382,23 @@ export default function AdminManagementPage() {
                         id="department"
                         name="department"
                         placeholder="e.g., Computer Science, IT, Master of Science"
-                        defaultValue={user?.department || "Computer Science"}
+                        defaultValue={(JSON.parse(localStorage.getItem("user") || "{}")).department || "Computer Science"}
                         required
                       />
+                    </div>
+                    <div>
+                      <Label htmlFor="class_email">Class Email *</Label>
+                      <Input
+                        id="class_email"
+                        name="class_email"
+                        type="email"
+                        defaultValue={(selectedItem as Class)?.class_email}
+                        placeholder="e.g., cs-a@kprcas.ac.in"
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        QR codes and session info will be sent to this email for all teachers in this class
+                      </p>
                     </div>
                   </div>
                   <DialogFooter className="mt-6">

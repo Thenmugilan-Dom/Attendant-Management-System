@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS classes (
   year INTEGER,
   total_students INTEGER DEFAULT 0,
   department TEXT NOT NULL DEFAULT 'General',
+  class_email TEXT,
   created_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -1565,4 +1566,15 @@ SELECT 'Subjects constraint created' as status;
 COMMIT;
 
 SELECT '✅ Migration complete: Duplicates removed and unique constraints created' as result;
+-- ═══════════════════════════════════════════════════════════════════════ --
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- MIGRATION: Add class_email column to classes table
+-- ═══════════════════════════════════════════════════════════════════════
+-- Purpose: Store class email for sending QR codes to all teachers in class
+-- Date: December 14, 2025
+
+ALTER TABLE classes ADD COLUMN IF NOT EXISTS class_email TEXT;
+
+SELECT '✅ Added class_email column to classes table' as migration_status;
 -- ═══════════════════════════════════════════════════════════════════════ --
