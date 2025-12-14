@@ -44,6 +44,7 @@ interface Class {
   section?: string
   year?: number
   total_students: number
+  department?: string
 }
 
 interface Subject {
@@ -853,13 +854,14 @@ export default function AdminManagementPage() {
                     <TableHead>Class Name</TableHead>
                     <TableHead>Section</TableHead>
                     <TableHead>Year</TableHead>
+                    <TableHead>Department</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {classes.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
                         No classes found. Click &quot;Add Class&quot; to create one.
                       </TableCell>
                     </TableRow>
@@ -869,6 +871,7 @@ export default function AdminManagementPage() {
                         <TableCell className="font-medium">{cls.class_name}</TableCell>
                         <TableCell>{cls.section || "-"}</TableCell>
                         <TableCell>{cls.year || "-"}</TableCell>
+                        <TableCell>{cls.department || "General"}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
@@ -1367,6 +1370,16 @@ export default function AdminManagementPage() {
                         max="5"
                         defaultValue={(selectedItem as Class)?.year}
                         placeholder="e.g., 1, 2, 3"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="department">Department *</Label>
+                      <Input
+                        id="department"
+                        name="department"
+                        placeholder="e.g., Computer Science, IT, Master of Science"
+                        defaultValue={user?.department || "Computer Science"}
+                        required
                       />
                     </div>
                   </div>
