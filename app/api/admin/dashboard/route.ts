@@ -26,37 +26,56 @@ export async function GET(request: NextRequest) {
 
     console.log('📊 Fetching dashboard data for admin:', adminId)
 
-    // Fetch students
+    // First, get admin's department
+    const { data: adminData, error: adminError } = await supabaseAdmin
+      .from('users')
+      .select('department')
+      .eq('id', adminId)
+      .single()
+
+    if (adminError || !adminData) {
+      console.error('❌ Error fetching admin department:', adminError)
+      return NextResponse.json(
+        { error: 'Admin not found' },
+        { status: 404 }
+      )
+    }
+
+    const department = adminData.department || 'General'
+    console.log('📍 Admin department:', department)
+
+    // Fetch students for this department
     const { data: studentsData, count: studentCount, error: studentsError } = await supabaseAdmin
       .from('students')
       .select('*', { count: 'exact' })
-      .eq('created_by_admin_id', adminId)
+      .eq('department', department)
 
     if (studentsError) {
       console.error('❌ Error fetching students:', studentsError)
     }
 
-    // Fetch teachers
+    // Fetch teachers (showing all, but can be filtered if needed)
     const { data: teachersData, count: teacherCount, error: teachersError } = await supabaseAdmin
       .from('users')
       .select('*', { count: 'exact' })
       .eq('user_type', 'teacher')
+      .eq('department', department)
 
     if (teachersError) {
       console.error('❌ Error fetching teachers:', teachersError)
     }
 
-    // Fetch classes
+    // Fetch classes for this department
     const { data: classesData, count: classCount, error: classesError } = await supabaseAdmin
       .from('classes')
       .select('*', { count: 'exact' })
-      .eq('created_by_admin_id', adminId)
+      .eq('department', department)
 
     if (classesError) {
       console.error('❌ Error fetching classes:', classesError)
     }
 
-    // Fetch pending OD requests
+    // Fetch pending OD requests for this department
     const { data: odRequests, error: odError } = await supabaseAdmin
       .from('od_requests')
       .select(`

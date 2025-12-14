@@ -186,11 +186,12 @@ export default function AdminManagementPage() {
 
   const fetchClasses = async () => {
     try {
-      const response = await fetch("/api/admin/classes")
+      if (!user?.id) return
+      const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+      const department = userObj.department || "General"
+      const response = await fetch(`/api/admin/classes?adminId=${user.id}&department=${department}`)
       const data = await response.json()
-      if (data.success) {
-        setClasses(data.classes || [])
-      }
+      setClasses(data || [])
     } catch (error) {
       console.error("Error fetching classes:", error)
     }
@@ -198,11 +199,12 @@ export default function AdminManagementPage() {
 
   const fetchSubjects = async () => {
     try {
-      const response = await fetch("/api/admin/subjects")
+      if (!user?.id) return
+      const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+      const department = userObj.department || "General"
+      const response = await fetch(`/api/admin/subjects?adminId=${user.id}&department=${department}`)
       const data = await response.json()
-      if (data.success) {
-        setSubjects(data.subjects || [])
-      }
+      setSubjects(data || [])
     } catch (error) {
       console.error("Error fetching subjects:", error)
     }
@@ -290,11 +292,16 @@ export default function AdminManagementPage() {
     setLoading(true)
 
     const formData = new FormData(e.currentTarget)
+    const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+    const department = userObj.department || "General"
+    
     const data = {
-      id: selectedItem?.id,
+      adminId: user?.id,
+      classId: selectedItem?.id,
       class_name: formData.get("class_name"),
       section: formData.get("section") || null,
       year: formData.get("year") ? parseInt(formData.get("year") as string) : null,
+      department: department,
     }
 
     try {
@@ -328,7 +335,18 @@ export default function AdminManagementPage() {
     if (!confirm("Are you sure you want to delete this class?")) return
 
     try {
-      const response = await fetch(`/api/admin/classes?id=${id}`, { method: "DELETE" })
+      const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+      const department = userObj.department || "General"
+      
+      const response = await fetch(`/api/admin/classes`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminId: user?.id,
+          classId: id,
+          department: department,
+        }),
+      })
       const result = await response.json()
 
       if (result.success) {
@@ -349,12 +367,17 @@ export default function AdminManagementPage() {
     setLoading(true)
 
     const formData = new FormData(e.currentTarget)
+    const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+    const department = userObj.department || "General"
+    
     const data = {
       id: selectedItem?.id,
       subject_code: formData.get("subject_code"),
       subject_name: formData.get("subject_name"),
       credits: formData.get("credits") ? parseInt(formData.get("credits") as string) : null,
       semester: formData.get("semester") ? parseInt(formData.get("semester") as string) : null,
+      department: department,
+      adminId: user?.id,
     }
 
     try {
@@ -388,7 +411,18 @@ export default function AdminManagementPage() {
     if (!confirm("Are you sure you want to delete this subject?")) return
 
     try {
-      const response = await fetch(`/api/admin/subjects?id=${id}`, { method: "DELETE" })
+      const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+      const department = userObj.department || "General"
+      
+      const response = await fetch("/api/admin/subjects", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          department,
+          adminId: user?.id,
+        }),
+      })
       const result = await response.json()
 
       if (result.success) {

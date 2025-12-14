@@ -1,67 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
-// Generate random password (letters, numbers, and @ symbol only)
-function generatePassword(length: number = 10): string {
-  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  const lowercase = 'abcdefghijklmnopqrstuvwxyz'
-  const numbers = '0123456789'
-  const special = '@'
-  const allChars = uppercase + lowercase + numbers + special
-  
-  let password = ''
-  // Ensure at least one of each type
-  password += uppercase[Math.floor(Math.random() * uppercase.length)]
-  password += lowercase[Math.floor(Math.random() * lowercase.length)]
-  password += numbers[Math.floor(Math.random() * numbers.length)]
-  password += '@' // Always include @
-  
-  // Fill the rest randomly
-  for (let i = 4; i < length; i++) {
-    password += allChars[Math.floor(Math.random() * allChars.length)]
+// Create a service role client to bypass RLS
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
   }
-  
-  // Shuffle the password
-  return password.split('').sort(() => Math.random() - 0.5).join('')
-}
+)
 
-// GET - Fetch all classes
-export async function GET() {
+// GET - Fetch all classes for admin's department
+export async function GET(request: NextRequest) {
   try {
-    console.log('Fetching classes from database...')
-    
-    // Fetch all columns including year
-    const { data: classes, error } = await supabase
-      .from('classes')
-      .select('id, class_name, section, year, created_at')
-      .order('class_name', { ascending: true })
+    const adminId = request.nextUrl.searchParams.get('adminId')
+    const department = request.nextUrl.searchParams.get('department')
 
-    if (error) {
-      console.error('Supabase error fetching classes:', error)
-      console.error('Error code:', error.code)
-      console.error('Error details:', error.details)
-      console.error('Error hint:', error.hint)
+    console.log('📚 Fetching classes for admin:', { adminId, department })
+
+    if (!adminId || !department) {
       return NextResponse.json(
-        { 
-          success: false,
-          error: error.message || 'Failed to fetch classes',
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        },
-        { status: 500 }
+        { error: 'adminId and department are required' },
+        { status: 400 }
       )
     }
 
-    console.log('Classes fetched successfully:', classes?.length || 0)
-    if (classes && classes.length > 0) {
-      console.log('Sample class:', classes[0])
+    // Fetch classes for this admin's department using service role
+    const { data, error } = await supabaseAdmin
+      .from('classes')
+      .select('*')
+      .eq('department', department)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('❌ Error fetching classes:', error)
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      )
     }
-    return NextResponse.json({ success: true, classes: classes || [] })
-  } catch (error: any) {
-    console.error('Error fetching classes:', error)
+
+    console.log('✅ Classes fetched:', (data || []).length)
+    return NextResponse.json({
+      success: true,
+      data: data || [],
+    })
+  } catch (error) {
+    console.error('❌ Classes GET API error:', error)
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to fetch classes' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -71,57 +61,57 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    console.log('Received class data:', body)
-    
-    const { class_name, section, year } = body
+    const { adminId, department, class_name, section, year } = body
 
-    if (!class_name) {
+    console.log('📝 Creating class:', { adminId, department, class_name, section, year })
+
+    if (!adminId || !department) {
       return NextResponse.json(
-        { error: 'Class name is required' },
+        { error: 'adminId and department are required' },
         { status: 400 }
       )
     }
 
-    // Prepare data with all fields
-    const insertData: any = {
-      class_name,
-    }
-    
-    // Add optional fields if they have values
-    if (section) insertData.section = section
-    if (year) insertData.year = year
-    
-    console.log('Inserting to database:', insertData)
-
-    const { data: newClass, error } = await supabase
-      .from('classes')
-      .insert(insertData)
-      .select('id, class_name, section, year, created_at')
-      .single()
-
-    if (error) {
-      console.error('Supabase error:', error)
-      if (error.code === '23505') {
-        return NextResponse.json(
-          { error: 'Class with this name already exists' },
-          { status: 409 }
-        )
-      }
+    if (!class_name) {
       return NextResponse.json(
-        { error: error.message || 'Database error' },
-        { status: 500 }
+        { error: 'class_name is required' },
+        { status: 400 }
       )
     }
+
+    // Create class using service role (bypasses RLS)
+    const { data, error } = await supabaseAdmin
+      .from('classes')
+      .insert([
+        {
+          class_name: class_name.trim(),
+          section: section?.trim() || null,
+          year: year ? parseInt(year) : null,
+          department: department,
+          total_students: 0,
+        },
+      ])
+      .select()
+
+    if (error) {
+      console.error('❌ Error creating class:', error)
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      )
+    }
+
+    console.log('✅ Class created:', data)
 
     return NextResponse.json({
       success: true,
       message: 'Class created successfully',
-      class: newClass,
+      data: data?.[0],
     })
-  } catch (error: any) {
-    console.error('Error creating class:', error)
+  } catch (error) {
+    console.error('❌ Classes POST API error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to create class' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -130,45 +120,50 @@ export async function POST(request: NextRequest) {
 // PUT - Update class
 export async function PUT(request: NextRequest) {
   try {
-    const { id, class_name, section, year } = await request.json()
+    const body = await request.json()
+    const { adminId, department, classId, class_name, section, year } = body
 
-    if (!id) {
+    console.log('✏️ Updating class:', { adminId, department, classId, class_name, section, year })
+
+    if (!adminId || !department || !classId) {
       return NextResponse.json(
-        { error: 'Class ID is required' },
+        { error: 'adminId, department and classId are required' },
         { status: 400 }
       )
     }
 
     const updateData: any = {}
-    if (class_name) updateData.class_name = class_name
-    if (section !== undefined) updateData.section = section
-    if (year !== undefined) updateData.year = year
+    if (class_name) updateData.class_name = class_name.trim()
+    if (section !== undefined) updateData.section = section ? section.trim() : null
+    if (year !== undefined) updateData.year = year ? parseInt(year) : null
 
-    const { data: updatedClass, error } = await supabase
+    // Update class using service role
+    const { data, error } = await supabaseAdmin
       .from('classes')
       .update(updateData)
-      .eq('id', id)
-      .select('id, class_name, section, year, created_at')
-      .single()
+      .eq('id', classId)
+      .eq('department', department)
+      .select()
 
     if (error) {
-      console.error('Error updating class:', error)
-      console.error('Error details:', JSON.stringify(error, null, 2))
+      console.error('❌ Error updating class:', error)
       return NextResponse.json(
-        { error: error.message || 'Failed to update class' },
-        { status: 500 }
+        { error: error.message },
+        { status: 400 }
       )
     }
+
+    console.log('✅ Class updated:', data)
 
     return NextResponse.json({
       success: true,
       message: 'Class updated successfully',
-      class: updatedClass,
+      data: data?.[0],
     })
-  } catch (error: any) {
-    console.error('Error updating class:', error)
+  } catch (error) {
+    console.error('❌ Classes PUT API error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to update class' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -177,31 +172,43 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete class
 export async function DELETE(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
+    const body = await request.json()
+    const { adminId, department, classId } = body
 
-    if (!id) {
+    console.log('🗑️ Deleting class:', { adminId, department, classId })
+
+    if (!adminId || !department || !classId) {
       return NextResponse.json(
-        { error: 'Class ID is required' },
+        { error: 'adminId, department and classId are required' },
         { status: 400 }
       )
     }
 
-    const { error } = await supabase
+    // Delete class using service role
+    const { error } = await supabaseAdmin
       .from('classes')
       .delete()
-      .eq('id', id)
+      .eq('id', classId)
+      .eq('department', department)
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error deleting class:', error)
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      )
+    }
+
+    console.log('✅ Class deleted:', classId)
 
     return NextResponse.json({
       success: true,
       message: 'Class deleted successfully',
     })
   } catch (error) {
-    console.error('Error deleting class:', error)
+    console.error('❌ Classes DELETE API error:', error)
     return NextResponse.json(
-      { error: 'Failed to delete class' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

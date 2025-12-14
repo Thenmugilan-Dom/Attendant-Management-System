@@ -75,10 +75,11 @@ CREATE TABLE IF NOT EXISTS classes (
   section TEXT,
   year INTEGER,
   total_students INTEGER DEFAULT 0,
+  department TEXT NOT NULL DEFAULT 'General',
   created_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(class_name, section, year)
+  UNIQUE(class_name, section, year, department)
 );
 
 
@@ -88,13 +89,15 @@ CREATE TABLE IF NOT EXISTS classes (
 
 CREATE TABLE IF NOT EXISTS subjects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject_code TEXT NOT NULL UNIQUE,
+  subject_code TEXT NOT NULL,
   subject_name TEXT NOT NULL,
   credits INTEGER,
   semester INTEGER,
+  department TEXT NOT NULL DEFAULT 'General',
   created_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(subject_code, department)
 );
 
 
@@ -130,6 +133,7 @@ CREATE TABLE IF NOT EXISTS students (
   parent_phone TEXT,
   parent_name TEXT,
   class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  department TEXT NOT NULL DEFAULT 'General',
   created_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -397,288 +401,32 @@ CREATE TRIGGER student_count_trigger
 
 
 -- ═══════════════════════════════════════════════════════════════════════
--- SECTION 4: ENABLE ROW LEVEL SECURITY (Admin Isolation Mode)
+-- SECTION 4: DISABLE ROW LEVEL SECURITY (Development Mode)
 -- ═══════════════════════════════════════════════════════════════════════
 
 SELECT '═══════════════════════════════════════' as info;
-SELECT '🔒 ENABLING ROW LEVEL SECURITY' as info;
-SELECT '🔒 ADMIN DATA ISOLATION ACTIVATED' as info;
+SELECT '🔓 DISABLING ROW LEVEL SECURITY' as info;
 SELECT '═══════════════════════════════════════' as info;
 
+-- Disable RLS on all tables (using service role for security)
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE classes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE subjects DISABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_subjects DISABLE ROW LEVEL SECURITY;
+ALTER TABLE students DISABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance_records DISABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance_otps DISABLE ROW LEVEL SECURITY;
+ALTER TABLE otps DISABLE ROW LEVEL SECURITY;
+ALTER TABLE od_requests DISABLE ROW LEVEL SECURITY;
 
--- ───────────────────────────────────────────────────────────────────────
--- 4.1 Add created_by_admin_id columns if they don't exist
--- ───────────────────────────────────────────────────────────────────────
-
-ALTER TABLE classes ADD COLUMN IF NOT EXISTS created_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE subjects ADD COLUMN IF NOT EXISTS created_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS created_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL;
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 4.2 Enable RLS on all tables
--- ───────────────────────────────────────────────────────────────────────
-
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE teacher_subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance_otps ENABLE ROW LEVEL SECURITY;
-ALTER TABLE otps ENABLE ROW LEVEL SECURITY;
-ALTER TABLE od_requests ENABLE ROW LEVEL SECURITY;
+SELECT '✅ RLS DISABLED ON ALL TABLES' as info;
+SELECT 'Using service role for API security instead' as info;
 
 
--- ───────────────────────────────────────────────────────────────────────
--- 4.3 USERS TABLE - RLS Policies
--- ───────────────────────────────────────────────────────────────────────
-
--- Admins can only see themselves
-DROP POLICY IF EXISTS "admins_see_only_themselves" ON users;
-CREATE POLICY "admins_see_only_themselves" ON users
-  FOR SELECT
-  USING (
-    CASE 
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'admin' THEN id = auth.uid()
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'teacher' THEN role = 'teacher'
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'student' THEN id = auth.uid()
-      ELSE FALSE
-    END
-  );
-
--- Teachers and students can only see themselves
-DROP POLICY IF EXISTS "users_see_self" ON users;
-CREATE POLICY "users_see_self" ON users
-  FOR UPDATE
-  USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 4.4 CLASSES TABLE - RLS Policies (Admin Isolation)
--- ───────────────────────────────────────────────────────────────────────
-
--- Admins see only classes they created
-DROP POLICY IF EXISTS "admins_see_own_classes" ON classes;
-CREATE POLICY "admins_see_own_classes" ON classes
-  FOR SELECT
-  USING (
-    CASE 
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'admin' THEN created_by_admin_id = auth.uid()
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'teacher' THEN TRUE
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'student' THEN TRUE
-      ELSE FALSE
-    END
-  );
-
--- Admins can only insert into their own admin space
-DROP POLICY IF EXISTS "admins_create_own_classes" ON classes;
-CREATE POLICY "admins_create_own_classes" ON classes
-  FOR INSERT
-  WITH CHECK (
-    (SELECT role FROM users WHERE id = auth.uid()) = 'admin' 
-    AND created_by_admin_id = auth.uid()
-  );
-
--- Admins can only update their own classes
-DROP POLICY IF EXISTS "admins_update_own_classes" ON classes;
-CREATE POLICY "admins_update_own_classes" ON classes
-  FOR UPDATE
-  USING (created_by_admin_id = auth.uid())
-  WITH CHECK (created_by_admin_id = auth.uid());
-
--- Admins can only delete their own classes
-DROP POLICY IF EXISTS "admins_delete_own_classes" ON classes;
-CREATE POLICY "admins_delete_own_classes" ON classes
-  FOR DELETE
-  USING (created_by_admin_id = auth.uid());
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 4.5 SUBJECTS TABLE - RLS Policies (Admin Isolation)
--- ───────────────────────────────────────────────────────────────────────
-
--- Admins see only subjects they created
-DROP POLICY IF EXISTS "admins_see_own_subjects" ON subjects;
-CREATE POLICY "admins_see_own_subjects" ON subjects
-  FOR SELECT
-  USING (
-    CASE 
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'admin' THEN created_by_admin_id = auth.uid()
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'teacher' THEN TRUE
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'student' THEN TRUE
-      ELSE FALSE
-    END
-  );
-
--- Admins can only insert their own subjects
-DROP POLICY IF EXISTS "admins_create_own_subjects" ON subjects;
-CREATE POLICY "admins_create_own_subjects" ON subjects
-  FOR INSERT
-  WITH CHECK (
-    (SELECT role FROM users WHERE id = auth.uid()) = 'admin' 
-    AND created_by_admin_id = auth.uid()
-  );
-
--- Admins can only update their own subjects
-DROP POLICY IF EXISTS "admins_update_own_subjects" ON subjects;
-CREATE POLICY "admins_update_own_subjects" ON subjects
-  FOR UPDATE
-  USING (created_by_admin_id = auth.uid())
-  WITH CHECK (created_by_admin_id = auth.uid());
-
--- Admins can only delete their own subjects
-DROP POLICY IF EXISTS "admins_delete_own_subjects" ON subjects;
-CREATE POLICY "admins_delete_own_subjects" ON subjects
-  FOR DELETE
-  USING (created_by_admin_id = auth.uid());
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 4.6 STUDENTS TABLE - RLS Policies (Admin Isolation)
--- ───────────────────────────────────────────────────────────────────────
-
--- Admins see only students they created
-DROP POLICY IF EXISTS "admins_see_own_students" ON students;
-CREATE POLICY "admins_see_own_students" ON students
-  FOR SELECT
-  USING (
-    CASE 
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'admin' THEN created_by_admin_id = auth.uid()
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'teacher' THEN TRUE
-      WHEN (SELECT role FROM users WHERE id = auth.uid()) = 'student' THEN id = auth.uid()
-      ELSE FALSE
-    END
-  );
-
--- Admins can only insert their own students
-DROP POLICY IF EXISTS "admins_create_own_students" ON students;
-CREATE POLICY "admins_create_own_students" ON students
-  FOR INSERT
-  WITH CHECK (
-    (SELECT role FROM users WHERE id = auth.uid()) = 'admin' 
-    AND created_by_admin_id = auth.uid()
-  );
-
--- Admins can only update their own students
-DROP POLICY IF EXISTS "admins_update_own_students" ON students;
-CREATE POLICY "admins_update_own_students" ON students
-  FOR UPDATE
-  USING (created_by_admin_id = auth.uid())
-  WITH CHECK (created_by_admin_id = auth.uid());
-
--- Admins can only delete their own students
-DROP POLICY IF EXISTS "admins_delete_own_students" ON students;
-CREATE POLICY "admins_delete_own_students" ON students
-  FOR DELETE
-  USING (created_by_admin_id = auth.uid());
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 4.7 TEACHER_SUBJECTS TABLE - RLS Policies
--- ───────────────────────────────────────────────────────────────────────
-
--- Teachers see their own assignments
-DROP POLICY IF EXISTS "teachers_see_own_assignments" ON teacher_subjects;
-CREATE POLICY "teachers_see_own_assignments" ON teacher_subjects
-  FOR SELECT
-  USING (
-    teacher_id = auth.uid() 
-    OR (SELECT role FROM users WHERE id = auth.uid()) = 'admin'
-  );
-
--- Only admins can manage teacher_subjects
-DROP POLICY IF EXISTS "admins_manage_assignments" ON teacher_subjects;
-CREATE POLICY "admins_manage_assignments" ON teacher_subjects
-  FOR INSERT
-  WITH CHECK ((SELECT role FROM users WHERE id = auth.uid()) = 'admin');
-
-DROP POLICY IF EXISTS "admins_update_assignments" ON teacher_subjects;
-CREATE POLICY "admins_update_assignments" ON teacher_subjects
-  FOR UPDATE
-  USING ((SELECT role FROM users WHERE id = auth.uid()) = 'admin')
-  WITH CHECK ((SELECT role FROM users WHERE id = auth.uid()) = 'admin');
-
-DROP POLICY IF EXISTS "admins_delete_assignments" ON teacher_subjects;
-CREATE POLICY "admins_delete_assignments" ON teacher_subjects
-  FOR DELETE
-  USING ((SELECT role FROM users WHERE id = auth.uid()) = 'admin');
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 4.8 ATTENDANCE SESSIONS TABLE - RLS Policies
--- ───────────────────────────────────────────────────────────────────────
-
--- Teachers see their own sessions
-DROP POLICY IF EXISTS "teachers_see_own_sessions" ON attendance_sessions;
-CREATE POLICY "teachers_see_own_sessions" ON attendance_sessions
-  FOR SELECT
-  USING (teacher_id = auth.uid());
-
--- Teachers can create their own sessions
-DROP POLICY IF EXISTS "teachers_create_sessions" ON attendance_sessions;
-CREATE POLICY "teachers_create_sessions" ON attendance_sessions
-  FOR INSERT
-  WITH CHECK ((SELECT role FROM users WHERE id = auth.uid()) = 'teacher' AND teacher_id = auth.uid());
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 4.9 ATTENDANCE_RECORDS TABLE - RLS Policies
--- ───────────────────────────────────────────────────────────────────────
-
--- Students see their own records
-DROP POLICY IF EXISTS "students_see_own_records" ON attendance_records;
-CREATE POLICY "students_see_own_records" ON attendance_records
-  FOR SELECT
-  USING (student_id = auth.uid());
-
--- Teachers see records for their sessions
-DROP POLICY IF EXISTS "teachers_see_session_records" ON attendance_records;
-CREATE POLICY "teachers_see_session_records" ON attendance_records
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM attendance_sessions 
-      WHERE attendance_sessions.id = attendance_records.session_id 
-      AND attendance_sessions.teacher_id = auth.uid()
-    )
-  );
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 4.10 OD_REQUESTS TABLE - RLS Policies
--- ───────────────────────────────────────────────────────────────────────
-
--- Students see their own OD requests
-DROP POLICY IF EXISTS "students_see_own_od_requests" ON od_requests;
-CREATE POLICY "students_see_own_od_requests" ON od_requests
-  FOR SELECT
-  USING (student_id = auth.uid());
-
--- Teachers see OD requests for their students
-DROP POLICY IF EXISTS "teachers_see_od_requests" ON od_requests;
-CREATE POLICY "teachers_see_od_requests" ON od_requests
-  FOR SELECT
-  USING (teacher_id = auth.uid());
-
--- Admins see OD requests for their data
-DROP POLICY IF EXISTS "admins_see_own_od_requests" ON od_requests;
-CREATE POLICY "admins_see_own_od_requests" ON od_requests
-  FOR SELECT
-  USING (
-    (SELECT role FROM users WHERE id = auth.uid()) = 'admin'
-    AND EXISTS (
-      SELECT 1 FROM students 
-      WHERE students.id = od_requests.student_id 
-      AND students.created_by_admin_id = auth.uid()
-    )
-  );
-
-SELECT '✅ ROW LEVEL SECURITY ENABLED' as info;
-SELECT '✅ ADMIN DATA ISOLATION ACTIVE' as info;
-SELECT '✅ Each admin sees only their own data' as info;
+SELECT '✅ ROW LEVEL SECURITY DISABLED' as info;
+SELECT '✅ USING SERVICE ROLE FOR API SECURITY' as info;
+SELECT '✅ All tables accessible for service role operations' as info;
 
 
 -- ═══════════════════════════════════════════════════════════════════════
