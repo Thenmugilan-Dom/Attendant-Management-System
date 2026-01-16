@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Fetch class details
     const { data: classData, error: classError } = await supabase
       .from('classes')
-      .select('id, class_name, section, year')
+      .select('id, class_name, section, year, class_email')
       .eq('id', session.class_id)
       .single()
 
@@ -253,10 +253,18 @@ export async function POST(request: NextRequest) {
   </body>
 </html>`
 
+    // Prepare email recipients - teacher and class email
+    const recipients = [teacher.email]
+    if (classData?.class_email) {
+      recipients.push(classData.class_email)
+      console.log('📧 Will send to class email:', classData.class_email)
+    }
+    const emailTo = recipients.join(', ')
+
     // Send email with QR code attachment
     const mailOptions = {
       from: `"KPRCAS Attendance System" <${process.env.GMAIL_USER}>`,
-      to: teacher.email,
+      to: emailTo,
       subject: `Attendance Session Active - ${classData?.class_name || 'Class'} ${subjectData?.subject_code || 'Subject'}`,
       html: htmlTemplate,
       attachments: [
@@ -279,14 +287,19 @@ export async function POST(request: NextRequest) {
       
       console.log('✅ Session email sent successfully!')
       console.log('📧 Email ID:', info.messageId)
-      console.log('📨 To:', teacher.email)
+      console.log('📨 To:', mailOptions.to)
+      if (classData?.class_email) {
+        console.log('📧 Class email:', classData.class_email)
+      }
 
       return NextResponse.json({
         success: true,
         message: 'Session email sent successfully',
         teacher_email: teacher.email,
+        class_email: classData?.class_email || null,
         session_code: session.session_code,
-        messageId: info.messageId
+        messageId: info.messageId,
+        recipients_count: recipients.length
       })
     } catch (emailError) {
       console.error('❌ Error sending email:', emailError)

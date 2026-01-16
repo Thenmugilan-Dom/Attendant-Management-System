@@ -198,16 +198,12 @@ export default function TeacherDashboard() {
 
       const data = await response.json()
       if (response.ok) {
-        // Show success message
-        alert(approved ? 'OD request approved successfully!' : 'OD request rejected successfully!')
         // Refresh OD requests
         await fetchPendingODRequests(user?.id!)
       } else {
-        alert('Error: ' + (data.error || 'Failed to process OD request'))
         console.error('Error response:', data)
       }
     } catch (error) {
-      alert('Error approving OD request: ' + String(error))
       console.error('Error approving OD request:', error)
     }
   }
@@ -572,7 +568,6 @@ export default function TeacherDashboard() {
 
   const handleStartSession = async () => {
     if (!selectedClassId || !selectedSubjectId || !user) {
-      alert("Please select both class and subject")
       return
     }
 
@@ -582,7 +577,6 @@ export default function TeacherDashboard() {
     )
 
     if (!selectedAssignment) {
-      alert("Invalid class-subject combination")
       return
     }
 
@@ -649,17 +643,14 @@ export default function TeacherDashboard() {
           alert(`✅ Session started!\n\nQR code has been sent to:\n${user.email}\n\nMessage ID: ${emailResult.messageId || 'Processing'}`)
         } else {
           console.warn("⚠️ Email send failed:", emailResult)
-          alert(`⚠️ Session started but email failed:\n\n${emailResult.error}\n${emailResult.details || ''}\n\nPlease check your email credentials.`)
         }
       } catch (emailError) {
         console.error("❌ Error sending email:", emailError)
-        alert(`⚠️ Session started but failed to send email.\n\nError: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`)
       }
     } catch (error) {
       console.error("❌ Error starting session:", error)
       console.error("Error type:", typeof error)
       console.error("Error stringified:", JSON.stringify(error, null, 2))
-      alert(`Failed to start session: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -686,7 +677,6 @@ export default function TeacherDashboard() {
       setSelectedSubjectId("")
     } catch (error) {
       console.error("❌ Caught error ending session:", error)
-      alert(`Failed to end session: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -717,11 +707,10 @@ export default function TeacherDashboard() {
       setReportData(data)
       
       if (data.sessions.length === 0) {
-        alert('No sessions found for the selected filters.')
+        console.log('No sessions found for the selected filters.')
       }
     } catch (error) {
       console.error('Error generating report:', error)
-      alert('Failed to generate report. Please try again.')
     } finally {
       setLoadingReport(false)
     }
@@ -734,7 +723,6 @@ export default function TeacherDashboard() {
       generateComprehensivePDF(reportData, user.name || 'Teacher')
     } catch (error) {
       console.error('Error generating comprehensive PDF:', error)
-      alert('Failed to generate PDF. Please try again.')
     }
   }
 
@@ -745,7 +733,6 @@ export default function TeacherDashboard() {
       generateComprehensiveCSV(reportData, user.name || 'Teacher')
     } catch (error) {
       console.error('Error generating comprehensive CSV:', error)
-      alert('Failed to generate CSV. Please try again.')
     }
   }
 
@@ -779,7 +766,6 @@ export default function TeacherDashboard() {
         console.error("Error details:", JSON.stringify(error, null, 2))
         console.error("Error code:", error.code)
         console.error("Error message:", error.message)
-        alert(`Failed to fetch students: ${error.message || 'Unknown error'}`)
       } else if (data) {
         console.log("✅ Raw student data from Supabase:", data)
         // Transform the data - using actual database columns

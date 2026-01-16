@@ -203,7 +203,6 @@ export default function TeacherDashboard() {
       }
     } catch (error) {
       console.error("Error fetching session details:", error)
-      alert("Failed to load session details")
     } finally {
       setLoadingDetails(false)
     }
@@ -222,23 +221,18 @@ export default function TeacherDashboard() {
       const data = await response.json()
 
       if (data.success) {
-        alert("Session deleted successfully")
         if (teacher) {
           await fetchAllSessions(teacher.id)
           await fetchActiveSessions(teacher.id)
         }
-      } else {
-        alert(data.error || "Failed to delete session")
       }
     } catch (error) {
       console.error("Error deleting session:", error)
-      alert("Failed to delete session")
     }
   }
 
   const generateQRCode = async () => {
     if (!teacher || !selectedClass || !selectedSubject) {
-      alert("Please select both class and subject")
       return
     }
 
@@ -267,7 +261,6 @@ export default function TeacherDashboard() {
       }
     } catch (error) {
       console.error("Error generating QR:", error)
-      alert("Failed to generate QR code")
     } finally {
       setGeneratingQR(false)
     }
@@ -306,7 +299,6 @@ export default function TeacherDashboard() {
       const data = await response.json()
 
       if (data.success) {
-        alert("Session completed successfully")
         if (teacher) {
           await fetchActiveSessions(teacher.id)
         }
@@ -330,7 +322,6 @@ export default function TeacherDashboard() {
       setShowAttendanceDialog(true)
     } catch (error) {
       console.error('Error fetching attendance:', error)
-      alert('Failed to fetch attendance records. Please try again.')
     } finally {
       setLoadingDetails(false)
     }
@@ -347,7 +338,6 @@ export default function TeacherDashboard() {
       )
     } catch (error) {
       console.error('Error generating PDF:', error)
-      alert('Failed to generate PDF. Please try again.')
     }
   }
 
@@ -362,7 +352,6 @@ export default function TeacherDashboard() {
       )
     } catch (error) {
       console.error('Error generating CSV:', error)
-      alert('Failed to generate CSV. Please try again.')
     }
   }
 

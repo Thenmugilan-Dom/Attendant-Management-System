@@ -61,7 +61,6 @@ export default function TeacherReports() {
 
     const user = JSON.parse(teacherData)
     if (user.role !== "teacher") {
-      alert("Access denied")
       router.push("/login")
       return
     }
@@ -85,7 +84,6 @@ export default function TeacherReports() {
 
   const fetchODReport = async () => {
     if (!teacher || !odReportClass) {
-      alert("Please select a class")
       return
     }
 
@@ -126,7 +124,6 @@ export default function TeacherReports() {
       }
     } catch (error) {
       console.error("Error fetching OD report:", error)
-      alert("Failed to fetch OD report")
     } finally {
       setOdLoading(false)
     }
@@ -148,12 +145,10 @@ export default function TeacherReports() {
       if (data.success) {
         setReportData(data)
       } else {
-        alert(data.message || "No data found")
         setReportData(null)
       }
     } catch (error) {
       console.error("Error:", error)
-      alert("Failed to fetch report")
     } finally {
       setLoading(false)
     }

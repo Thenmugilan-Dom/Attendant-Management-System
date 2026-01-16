@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { QrCode, Mail, KeyRound, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import { QrCode, Mail, KeyRound, CheckCircle, Loader2, ZoomIn, ZoomOut, X } from "lucide-react"
 
 interface AttendanceContentProps {
   initialSessionCode?: string
@@ -14,15 +14,18 @@ interface AttendanceContentProps {
 
 export function AttendanceContent({ initialSessionCode = "" }: AttendanceContentProps) {
   const searchParams = useSearchParams()
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [step, setStep] = useState<"scan" | "email" | "otp" | "success">("scan")
   const [sessionCode, setSessionCode] = useState(initialSessionCode)
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
   const [sessionId, setSessionId] = useState("")
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [successMessage, setSuccessMessage] = useState("")
   const [attendanceDetails, setAttendanceDetails] = useState<any>(null)
+  const [cameraActive, setCameraActive] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [streamRef, setStreamRef] = useState<MediaStream | null>(null)
 
   // Check for session code in URL parameters (from QR code scan)
   useEffect(() => {
@@ -32,22 +35,92 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
       setStep("email")
       console.log("📲 Session code from QR scan:", sessionFromUrl)
     }
-  }, [searchParams])
+
+    // Cleanup camera on unmount
+    return () => {
+      if (streamRef) {
+        streamRef.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [searchParams, streamRef])
+
+  // Start camera for QR scanning
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      })
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        setStreamRef(stream)
+        setCameraActive(true)
+      }
+    } catch (err: any) {
+      console.error("Camera error:", err)
+    }
+  }
+
+  // Stop camera
+  const stopCamera = () => {
+    if (streamRef) {
+      streamRef.getTracks().forEach(track => track.stop())
+      setStreamRef(null)
+      setCameraActive(false)
+      setZoom(1)
+    }
+  }
+
+  // Handle zoom in
+  const handleZoomIn = async () => {
+    if (streamRef) {
+      const videoTrack = streamRef.getVideoTracks()[0]
+      const settings = videoTrack.getSettings()
+      const currentZoom = settings.zoom || 1
+      const maxZoom = videoTrack.getCapabilities().zoom?.max || 4
+      const newZoom = Math.min(currentZoom + 0.5, maxZoom)
+      
+      try {
+        await videoTrack.applyConstraints({ advanced: [{ zoom: newZoom }] })
+        setZoom(newZoom)
+      } catch (err) {
+        console.error("Zoom error:", err)
+      }
+    }
+  }
+
+  // Handle zoom out
+  const handleZoomOut = async () => {
+    if (streamRef) {
+      const videoTrack = streamRef.getVideoTracks()[0]
+      const settings = videoTrack.getSettings()
+      const currentZoom = settings.zoom || 1
+      const minZoom = videoTrack.getCapabilities().zoom?.min || 1
+      const newZoom = Math.max(currentZoom - 0.5, minZoom)
+      
+      try {
+        await videoTrack.applyConstraints({ advanced: [{ zoom: newZoom }] })
+        setZoom(newZoom)
+      } catch (err) {
+        console.error("Zoom error:", err)
+      }
+    }
+  }
 
   const handleScanSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (sessionCode.trim().length === 8) {
-      setError("")
       setStep("email")
-    } else {
-      setError("Please enter a valid 8-character session code")
     }
   }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError("")
 
     try {
       const response = await fetch("/api/student/verify-otp", {
@@ -64,12 +137,9 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
       if (data.success) {
         setSessionId(data.session_id)
         setStep("otp")
-        setSuccessMessage(`OTP sent to ${email}. Please check your email.`)
-      } else {
-        setError(data.error || "Failed to send OTP")
       }
     } catch (err: any) {
-      setError(err.message || "An error occurred")
+      console.error("Error:", err)
     } finally {
       setLoading(false)
     }
@@ -78,7 +148,6 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError("")
 
     try {
       const response = await fetch("/api/student/mark-attendance", {
@@ -95,12 +164,9 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
       if (data.success) {
         setAttendanceDetails(data)
         setStep("success")
-        setSuccessMessage("Attendance marked successfully!")
-      } else {
-        setError(data.error || "Failed to verify OTP")
       }
     } catch (err: any) {
-      setError(err.message || "An error occurred")
+      console.error("Error:", err)
     } finally {
       setLoading(false)
     }
@@ -111,52 +177,148 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
     setSessionCode("")
     setEmail("")
     setOtp("")
-    setError("")
-    setSuccessMessage("")
   }
 
   return (
     <>
       {step === "scan" && (
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <QrCode className="h-5 w-5" />
               Scan QR Code
             </CardTitle>
             <CardDescription>
-              Scan the QR code from your teacher or enter the session code manually
+              Scan the QR code displayed by your teacher or enter the session code manually
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleScanSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="session-code">Session Code</Label>
-                <Input
-                  id="session-code"
-                  placeholder="Enter 8-character code"
-                  value={sessionCode}
-                  onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
-                  maxLength={8}
-                  className="text-center text-lg font-mono tracking-widest"
-                />
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  <span>{error}</span>
+            {!cameraActive ? (
+              <form onSubmit={handleScanSubmit} className="space-y-4">
+                <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
+                  <QrCode className="mx-auto h-16 w-16 text-gray-400 mb-3" />
+                  <p className="text-gray-500 mb-4">Click below to start scanning</p>
                 </div>
-              )}
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={sessionCode.length !== 8}
-              >
-                Continue
-              </Button>
-            </form>
+                <Button
+                  type="button"
+                  onClick={startCamera}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  📷 Start Camera
+                </Button>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="bg-white px-2 text-gray-500">Or</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="session-code">Enter Session Code Manually</Label>
+                  <Input
+                    id="session-code"
+                    placeholder="Enter 8-character code"
+                    value={sessionCode}
+                    onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
+                    maxLength={8}
+                    className="text-center text-lg font-mono tracking-widest"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={sessionCode.length !== 8}
+                >
+                  Continue
+                </Button>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative bg-black rounded-lg overflow-hidden">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-96 object-cover"
+                    style={{
+                      transform: `scale(${zoom})`
+                    }}
+                  />
+                  
+                  {/* Scanning overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-64 h-64 border-2 border-yellow-400 rounded-lg opacity-75"></div>
+                  </div>
+
+                  {/* Zoom level indicator */}
+                  <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                    Zoom: {zoom.toFixed(1)}x
+                  </div>
+
+                  {/* Camera Controls - Floating on bottom left */}
+                  <div className="absolute bottom-4 left-4 right-4 flex gap-2 justify-start">
+                    <button
+                      onClick={handleZoomOut}
+                      disabled={zoom <= 1}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold rounded-full w-16 h-16 flex items-center justify-center shadow-xl text-lg"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut className="h-8 w-8" />
+                    </button>
+                    
+                    <button
+                      onClick={handleZoomIn}
+                      className="bg-green-600 hover:bg-green-700 text-white font-bold rounded-full w-16 h-16 flex items-center justify-center shadow-xl text-lg"
+                      title="Zoom In"
+                    >
+                      <ZoomIn className="h-8 w-8" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Below Camera Controls */}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={stopCamera}
+                    variant="destructive"
+                    className="flex-1 gap-2 text-base py-6"
+                  >
+                    <X className="h-5 w-5" />
+                    Stop Scanning
+                  </Button>
+
+                  <Button
+                    onClick={() => {
+                      if (sessionCode.length === 8) {
+                        stopCamera()
+                        setStep("email")
+                      }
+                    }}
+                    disabled={sessionCode.length !== 8}
+                    className="flex-1 gap-2 text-base py-6"
+                  >
+                    Continue
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="session-code-manual">Or Enter Session Code Manually</Label>
+                  <Input
+                    id="session-code-manual"
+                    placeholder="Enter 8-character code"
+                    value={sessionCode}
+                    onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
+                    maxLength={8}
+                    className="text-center text-lg font-mono tracking-widest"
+                  />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -185,20 +347,6 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                   required
                 />
               </div>
-
-              {successMessage && (
-                <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-                  <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                  <span>{successMessage}</span>
-                </div>
-              )}
-
-              {error && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
 
               <div className="flex gap-2">
                 <Button
@@ -249,13 +397,6 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                   required
                 />
               </div>
-
-              {error && (
-                <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
 
               <div className="flex gap-2">
                 <Button

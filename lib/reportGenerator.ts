@@ -494,3 +494,306 @@ export function generateComprehensiveCSV(data: ComprehensiveReportData, teacherN
   link.click()
   document.body.removeChild(link)
 }
+
+// ============================================================================
+// DATE-WISE REPORT GENERATORS (Admin Reports)
+// ============================================================================
+
+interface DateWiseReportData {
+  dateRange: { startDate: string; endDate: string }
+  summary: {
+    total_sessions: number
+    total_students: number
+    total_present: number
+    total_absent: number
+    average_attendance: string
+  }
+  sessions: Array<{
+    session_id: string
+    session_code: string
+    session_date: string
+    teacher: { name: string; department: string }
+    class: { class_name: string; section: string; year: number }
+    subject: { subject_name: string; subject_code: string }
+    statistics: {
+      total_students: number
+      present: number
+      absent: number
+      attendance_percentage: string
+    }
+    records: Array<{
+      student_info: {
+        student_id: string
+        name: string
+        email: string
+        phone?: string
+        address?: string
+      }
+      status: string
+      marked_at: string | null
+    }>
+  }>
+  student_wise: Array<{
+    student_id: string
+    name: string
+    email: string
+    phone?: string
+    total_sessions: number
+    present_count: number
+    absent_count: number
+    attendance_percentage: string
+  }>
+}
+
+export function generateDateWisePDF(data: DateWiseReportData) {
+  const doc = new jsPDF()
+  let yPos = 10
+
+  // Header
+  doc.setFillColor(59, 130, 246)
+  doc.rect(0, 0, 210, 40, 'F')
+
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(24)
+  doc.setFont('helvetica', 'bold')
+  doc.text('KPRCAS', 105, 15, { align: 'center' })
+
+  doc.setFontSize(18)
+  doc.text('Date-wise Attendance Report', 105, 25, { align: 'center' })
+
+  yPos = 55
+
+  // Report Period
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(10)
+  doc.text(
+    `Period: ${data.dateRange.startDate} to ${data.dateRange.endDate}`,
+    14,
+    yPos
+  )
+  doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 14, yPos + 6)
+
+  yPos += 15
+
+  // Overall Summary Section
+  doc.setFillColor(240, 240, 240)
+  doc.rect(14, yPos, 182, 8, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('Overall Summary', 16, yPos + 5.5)
+  yPos += 12
+
+  const summaryData = [
+    ['Total Sessions', data.summary.total_sessions.toString()],
+    ['Total Student Records', data.summary.total_students.toString()],
+    ['Total Present', data.summary.total_present.toString()],
+    ['Total Absent', data.summary.total_absent.toString()],
+    ['Average Attendance', `${data.summary.average_attendance}%`]
+  ]
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Metric', 'Value']],
+    body: summaryData,
+    theme: 'striped',
+    headStyles: { fillColor: [59, 130, 246], fontSize: 10, fontStyle: 'bold' },
+    styles: { fontSize: 10, cellPadding: 4 },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 100 },
+      1: { halign: 'center', cellWidth: 82 }
+    }
+  })
+
+  yPos = (doc as any).lastAutoTable.finalY + 15
+
+  // Session-wise Breakdown
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('Session-wise Breakdown', 14, yPos)
+  yPos += 8
+
+  const sessionTableData = data.sessions.map((session, index) => [
+    (index + 1).toString(),
+    new Date(session.session_date).toLocaleDateString('en-IN'),
+    session.session_code,
+    `${session.class.class_name} ${session.class.section}`,
+    session.subject.subject_name,
+    session.statistics.total_students.toString(),
+    session.statistics.present.toString(),
+    session.statistics.absent.toString(),
+    `${session.statistics.attendance_percentage}%`
+  ])
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['#', 'Date', 'Code', 'Class', 'Subject', 'Total', 'Present', 'Absent', '%']],
+    body: sessionTableData,
+    theme: 'grid',
+    headStyles: { fillColor: [59, 130, 246], fontSize: 9, fontStyle: 'bold' },
+    styles: { fontSize: 8, cellPadding: 2 },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 30 },
+      4: { cellWidth: 35 },
+      5: { cellWidth: 15, halign: 'center' },
+      6: { cellWidth: 15, halign: 'center' },
+      7: { cellWidth: 15, halign: 'center' },
+      8: { cellWidth: 12, halign: 'center' }
+    },
+    pageBreak: 'auto'
+  })
+
+  yPos = (doc as any).lastAutoTable.finalY + 15
+
+  // Student-wise Summary
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('Student-wise Summary', 14, yPos)
+  yPos += 8
+
+  const studentTableData = data.student_wise.map((student, index) => [
+    (index + 1).toString(),
+    student.student_id,
+    student.name,
+    student.email,
+    student.total_sessions.toString(),
+    student.present_count.toString(),
+    student.absent_count.toString(),
+    `${student.attendance_percentage}%`
+  ])
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['#', 'Student ID', 'Name', 'Email', 'Sessions', 'Present', 'Absent', '%']],
+    body: studentTableData,
+    theme: 'striped',
+    headStyles: { fillColor: [59, 130, 246], fontSize: 9, fontStyle: 'bold' },
+    styles: { fontSize: 8, cellPadding: 2 },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 20, halign: 'center' },
+      2: { cellWidth: 35 },
+      3: { cellWidth: 45 },
+      4: { cellWidth: 15, halign: 'center' },
+      5: { cellWidth: 15, halign: 'center' },
+      6: { cellWidth: 15, halign: 'center' },
+      7: { cellWidth: 12, halign: 'center' }
+    },
+    pageBreak: 'auto',
+    didDrawPage: (data) => {
+      // Footer
+      const pageCount = (doc as any).internal.getNumberOfPages()
+      const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
+      doc.setFontSize(8)
+      doc.setTextColor(100)
+      doc.text(
+        `Page ${currentPage} of ${pageCount}`,
+        105,
+        doc.internal.pageSize.height - 10,
+        { align: 'center' }
+      )
+    }
+  })
+
+  // Save PDF
+  const fileName = `DateWise_Report_${data.dateRange.startDate}_to_${data.dateRange.endDate}.pdf`
+  doc.save(fileName)
+}
+
+export function generateDateWiseCSV(data: DateWiseReportData) {
+  let csv = 'KPRCAS Date-wise Attendance Report\n\n'
+
+  csv += `Period,${data.dateRange.startDate} to ${data.dateRange.endDate}\n`
+  csv += `Generated On,${new Date().toLocaleString('en-IN')}\n\n`
+
+  csv += 'OVERALL SUMMARY\n'
+  csv += 'Metric,Value\n'
+  csv += `Total Sessions,${data.summary.total_sessions}\n`
+  csv += `Total Student Records,${data.summary.total_students}\n`
+  csv += `Total Present,${data.summary.total_present}\n`
+  csv += `Total Absent,${data.summary.total_absent}\n`
+  csv += `Average Attendance,${data.summary.average_attendance}%\n\n`
+
+  csv += 'SESSION-WISE BREAKDOWN\n'
+  csv += 'S.No,Date,Session Code,Class,Subject,Teacher,Total Students,Present,Absent,Attendance %\n'
+
+  data.sessions.forEach((session, index) => {
+    csv += `${index + 1},`
+    csv += `${new Date(session.session_date).toLocaleDateString('en-IN')},`
+    csv += `${session.session_code},`
+    csv += `"${session.class.class_name} ${session.class.section}",`
+    csv += `"${session.subject.subject_name}",`
+    csv += `"${session.teacher.name}",`
+    csv += `${session.statistics.total_students},`
+    csv += `${session.statistics.present},`
+    csv += `${session.statistics.absent},`
+    csv += `${session.statistics.attendance_percentage}%\n`
+  })
+
+  csv += '\nSTUDENT-WISE SUMMARY\n'
+  csv += 'S.No,Student ID,Name,Email,Phone,Total Sessions,Present,Absent,Attendance %\n'
+
+  data.student_wise.forEach((student, index) => {
+    csv += `${index + 1},`
+    csv += `${student.student_id},`
+    csv += `"${student.name}",`
+    csv += `${student.email},`
+    csv += `"${student.phone || 'N/A'}",`
+    csv += `${student.total_sessions},`
+    csv += `${student.present_count},`
+    csv += `${student.absent_count},`
+    csv += `${student.attendance_percentage}%\n`
+  })
+
+  // Detailed records for each session
+  csv += '\n\nDETAILED SESSION RECORDS\n\n'
+
+  data.sessions.forEach((session, sessionIndex) => {
+    csv += `Session ${sessionIndex + 1}: ${session.session_code}\n`
+    csv += `Date: ${new Date(session.session_date).toLocaleDateString('en-IN')}\n`
+    csv += `Class: ${session.class.class_name} ${session.class.section}\n`
+    csv += `Subject: ${session.subject.subject_name}\n`
+    csv += `Teacher: ${session.teacher.name}\n`
+    csv += `Department: ${session.teacher.department}\n`
+    csv += `Attendance: ${session.statistics.present}/${session.statistics.total_students} (${session.statistics.attendance_percentage}%)\n\n`
+    csv += 'S.No,Student ID,Name,Email,Status,Time Marked\n'
+
+    session.records.forEach((record, index) => {
+      const time = record.marked_at
+        ? new Date(record.marked_at).toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          })
+        : '-'
+
+      csv += `${index + 1},`
+      csv += `${record.student_info.student_id},`
+      csv += `"${record.student_info.name}",`
+      csv += `${record.student_info.email},`
+      csv += `${record.status === 'present' ? 'Present' : 'Absent'},`
+      csv += `${time}\n`
+    })
+
+    csv += '\n'
+  })
+
+  // Download CSV
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+
+  link.setAttribute('href', url)
+  link.setAttribute(
+    'download',
+    `DateWise_Report_${data.dateRange.startDate}_to_${data.dateRange.endDate}.csv`
+  )
+  link.style.visibility = 'hidden'
+
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
