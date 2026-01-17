@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { QrCode, Mail, KeyRound, CheckCircle, Loader2, ZoomIn, ZoomOut, X } from "lucide-react"
+import { QrCode, Mail, KeyRound, Loader2, ZoomIn, ZoomOut, X } from "lucide-react"
 
 interface AttendanceContentProps {
   initialSessionCode?: string
@@ -459,45 +459,16 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
       )}
 
       {step === "success" && (
-        <Card className="w-full max-w-md border-green-200 bg-green-50">
+        <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-700">
-              <CheckCircle className="h-5 w-5" />
-              Success!
-            </CardTitle>
-            <CardDescription className="text-green-600">
-              Your attendance has been recorded
-            </CardDescription>
+            <CardTitle>Attendance Marked</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {attendanceDetails && (
-              <div className="space-y-3 rounded-lg bg-white p-4">
-                <div>
-                  <p className="text-sm text-gray-600">Class</p>
-                  <p className="font-semibold">
-                    {attendanceDetails.class_name} {attendanceDetails.section}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Subject</p>
-                  <p className="font-semibold">
-                    {attendanceDetails.subject_code} - {attendanceDetails.subject_name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Marked At</p>
-                  <p className="font-semibold">
-                    {new Date(attendanceDetails.marked_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            )}
-
             <Button
               onClick={handleReset}
-              className="w-full bg-green-600 hover:bg-green-700"
+              className="w-full"
             >
-              Mark Attendance Again
+              Scan Another QR Code
             </Button>
           </CardContent>
         </Card>
