@@ -182,7 +182,7 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
   return (
     <>
       {step === "scan" && (
-        <Card className="w-full max-w-2xl">
+        <Card className="w-full max-w-2xl overflow-visible">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <QrCode className="h-5 w-5" />
@@ -192,7 +192,7 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
               Scan the QR code displayed by your teacher or enter the session code manually
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-visible">
             {!cameraActive ? (
               <form onSubmit={handleScanSubmit} className="space-y-4">
                 <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
@@ -238,9 +238,9 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                 </Button>
               </form>
             ) : (
-              <div className="space-y-4">
-                {/* Camera Container with positioned buttons on top */}
-                <div className="relative bg-black rounded-lg" style={{ height: '384px' }}>
+              <div className="space-y-4 w-full">
+                {/* Camera Container */}
+                <div className="relative bg-black rounded-lg w-full" style={{ height: '384px' }}>
                   <video
                     ref={videoRef}
                     autoPlay
@@ -262,12 +262,34 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                   </div>
                 </div>
 
-                {/* Zoom Buttons - Outside video container for guaranteed visibility */}
-                <div className="flex gap-3 justify-center">
+                {/* Zoom Buttons - Guaranteed visible with inline styles */}
+                <div className="flex gap-4 justify-center py-4 bg-white rounded-lg" style={{ 
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  padding: '16px',
+                  gap: '16px',
+                  borderRadius: '8px',
+                  backgroundColor: '#f9fafb'
+                }}>
                   <button
                     onClick={handleZoomOut}
                     disabled={zoom <= 1}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold rounded-full w-20 h-20 flex items-center justify-center shadow-2xl transition-all text-lg"
+                    style={{
+                      backgroundColor: zoom <= 1 ? '#9ca3af' : '#2563eb',
+                      color: 'white',
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      cursor: zoom <= 1 ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '32px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                      transition: 'all 0.2s'
+                    }}
                     title="Zoom Out"
                   >
                     <ZoomOut className="h-10 w-10" />
@@ -276,7 +298,21 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                   <button
                     onClick={handleZoomIn}
                     disabled={zoom >= 4}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold rounded-full w-20 h-20 flex items-center justify-center shadow-2xl transition-all text-lg"
+                    style={{
+                      backgroundColor: zoom >= 4 ? '#9ca3af' : '#16a34a',
+                      color: 'white',
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      cursor: zoom >= 4 ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '32px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                      transition: 'all 0.2s'
+                    }}
                     title="Zoom In"
                   >
                     <ZoomIn className="h-10 w-10" />
