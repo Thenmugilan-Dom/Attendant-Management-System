@@ -355,7 +355,7 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                   />
                 </div>
               </div>
-            )}}
+            )}
           </CardContent>
         </Card>
       )}
