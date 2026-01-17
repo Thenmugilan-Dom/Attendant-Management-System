@@ -262,7 +262,17 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                   </div>
                 </div>
 
-                {/* Zoom Buttons - Guaranteed visible with inline styles */}
+                {/* Stop Scanning Button */}
+                <Button
+                  onClick={stopCamera}
+                  variant="destructive"
+                  className="w-full gap-2 text-base py-6"
+                >
+                  <X className="h-5 w-5" />
+                  Stop Scanning
+                </Button>
+
+                {/* Zoom Buttons - Below Stop button */}
                 <div className="flex gap-4 justify-center py-4 bg-white rounded-lg" style={{ 
                   display: 'flex',
                   justifyContent: 'center',
@@ -319,30 +329,19 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                   </button>
                 </div>
 
-                {/* Below Camera Controls */}
-                <div className="flex gap-2">
-                  <Button
-                    onClick={stopCamera}
-                    variant="destructive"
-                    className="flex-1 gap-2 text-base py-6"
-                  >
-                    <X className="h-5 w-5" />
-                    Stop Scanning
-                  </Button>
-
-                  <Button
-                    onClick={() => {
-                      if (sessionCode.length === 8) {
-                        stopCamera()
-                        setStep("email")
-                      }
-                    }}
-                    disabled={sessionCode.length !== 8}
-                    className="flex-1 gap-2 text-base py-6"
-                  >
-                    Continue
-                  </Button>
-                </div>
+                {/* Continue Button */}
+                <Button
+                  onClick={() => {
+                    if (sessionCode.length === 8) {
+                      stopCamera()
+                      setStep("email")
+                    }
+                  }}
+                  disabled={sessionCode.length !== 8}
+                  className="w-full gap-2 text-base py-6"
+                >
+                  Continue with Code
+                </Button>
 
                 <div className="space-y-2">
                   <Label htmlFor="session-code-manual">Or Enter Session Code Manually</Label>
@@ -356,7 +355,7 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
                   />
                 </div>
               </div>
-            )}
+            )}}
           </CardContent>
         </Card>
       )}
