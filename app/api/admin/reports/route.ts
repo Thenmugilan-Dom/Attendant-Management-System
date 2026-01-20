@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
     const dateStart = new Date(startDate)
     const dateEnd = new Date(endDate)
 

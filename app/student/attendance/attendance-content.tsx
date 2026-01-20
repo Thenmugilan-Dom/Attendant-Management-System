@@ -47,6 +47,12 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
   // Start camera for QR scanning
   const startCamera = async () => {
     try {
+      // Check if we're in a secure context (HTTPS required for camera)
+      if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+        alert('Camera requires HTTPS. Please:\n1. Deploy to Vercel (automatic HTTPS)\n2. Use manual session code entry')
+        return
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
@@ -62,6 +68,19 @@ export function AttendanceContent({ initialSessionCode = "" }: AttendanceContent
       }
     } catch (err: any) {
       console.error("Camera error:", err)
+      let errorMessage = 'Failed to access camera. '
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage += 'Please allow camera permissions in browser settings.'
+      } else if (err.name === 'NotFoundError') {
+        errorMessage += 'No camera found on this device.'
+      } else if (err.name === 'NotSupportedError') {
+        errorMessage += 'Camera not supported. Please use manual entry.'
+      } else {
+        errorMessage += 'Use manual session code entry below.'
+      }
+      
+      alert(errorMessage)
     }
   }
 

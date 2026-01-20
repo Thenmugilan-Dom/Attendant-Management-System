@@ -78,6 +78,8 @@ export default function StudentAttendancePage() {
       console.log("⏱️ Initial timer set to:", sessionData.remainingSeconds, "seconds")
     }
 
+    let hasShownExpiredToast = false // Flag to prevent repeated notifications
+
     const interval = setInterval(() => {
       const now = new Date().getTime()
       const expiresAt = new Date(sessionData.expiresAt!).getTime()
@@ -86,9 +88,10 @@ export default function StudentAttendancePage() {
       setTimeRemaining(diff)
       console.log("⏱️ Timer update:", diff, "seconds remaining")
 
-      // Mark as expired when time runs out
-      if (diff === 0 && !sessionExpired) {
+      // Mark as expired when time runs out (show toast only once)
+      if (diff === 0 && !sessionExpired && !hasShownExpiredToast) {
         setSessionExpired(true)
+        hasShownExpiredToast = true
         showToast("Session has expired!", "error")
         console.log("⏰ Session expired - attendance can no longer be marked")
       }
@@ -98,7 +101,7 @@ export default function StudentAttendancePage() {
       clearInterval(interval)
       console.log("🔄 Timer cleanup completed")
     }
-  }, [sessionData, sessionExpired, showToast])
+  }, [sessionData, sessionExpired])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -124,11 +127,12 @@ export default function StudentAttendancePage() {
         return
       }
 
-      // Check if we're in a secure context
+      // Check if we're in a secure context (HTTPS or localhost)
       if (!window.isSecureContext && window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.')) {
-        throw new Error(
-          "Camera access requires HTTPS. Use 'Enter Session Code Manually' button below."
-        )
+        setError("Camera requires HTTPS. Please use manual entry or open on Vercel deployment.")
+        showToast("Camera requires HTTPS connection", "error")
+        setScanning(false)
+        return
       }
 
       // Initialize Html5Qrcode
@@ -228,7 +232,12 @@ export default function StudentAttendancePage() {
             stopScanning()
           } catch (e) {
             console.error("Invalid QR code format or fetch error:", e)
-            showToast("Invalid QR code or connection error", "error")
+            const errorMsg = "Invalid QR code or connection error"
+            // Only show toast if it's a new error (prevent repeated toasts)
+            if (errorMsg !== lastError) {
+              showToast(errorMsg, "error")
+              setLastError(errorMsg)
+            }
           }
         },
         (errorMessage) => {
@@ -248,7 +257,11 @@ export default function StudentAttendancePage() {
       }
       
       setError(errorMsg)
-      showToast(errorMsg, "error")
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast(errorMsg, "error")
+        setLastError(errorMsg)
+      }
       setScanning(false)
     }
   }
@@ -353,7 +366,11 @@ export default function StudentAttendancePage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to verify session code"
       setError(errorMsg)
-      showToast(errorMsg, "error")
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast(errorMsg, "error")
+        setLastError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
@@ -397,10 +414,11 @@ export default function StudentAttendancePage() {
       const data = await response.json()
 
       if (!response.ok) {
-        // Check if this is a class mismatch error
+        // Check if this is a class mismatch error (always show this important error)
         if (response.status === 403 && data.blocked) {
           setError(data.error)
           showToast(data.error, "error")
+          setLastError(data.error) // Update last error to prevent future repetition
           setLoading(false)
           return // Don't proceed to OTP step
         }
@@ -429,7 +447,11 @@ export default function StudentAttendancePage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to send OTP"
       setError(errorMsg)
-      showToast(errorMsg, "error")
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast(errorMsg, "error")
+        setLastError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
@@ -457,8 +479,13 @@ export default function StudentAttendancePage() {
 
     // Check if session has expired
     if (sessionExpired || timeRemaining <= 0) {
-      setError("Session has expired. Please ask your teacher to start a new session.")
-      showToast("Session expired - cannot mark attendance", "error")
+      const errorMsg = "Session has expired. Please ask your teacher to start a new session."
+      setError(errorMsg)
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast("Session expired - cannot mark attendance", "error")
+        setLastError(errorMsg)
+      }
       return
     }
 
