@@ -11,7 +11,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { Camera, CheckCircle, AlertCircle, QrCode, X } from "lucide-react"
+import { Camera, CheckCircle, AlertCircle, QrCode, X, ZoomIn, ZoomOut } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { ResponsiveWrapper } from "@/components/responsive-wrapper"
 import { InteractiveCard } from "@/components/interactive-card"
@@ -51,7 +51,11 @@ export default function StudentAttendancePage() {
   const [sessionExpired, setSessionExpired] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
   const [lastError, setLastError] = useState<string>("")
+  const [zoomLevel, setZoomLevel] = useState<number>(1)
+  const [maxZoom, setMaxZoom] = useState<number>(1)
+  const [zoomSupported, setZoomSupported] = useState<boolean>(false)
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
+  const videoTrackRef = useRef<MediaStreamTrack | null>(null)
   const { showToast, ToastContainer } = useToast()
 
   // Track client-side mounting to prevent hydration errors
@@ -245,6 +249,31 @@ export default function StudentAttendancePage() {
           // console.log("QR scan error:", errorMessage)
         }
       )
+
+      // Try to get the video track for zoom control after scanner starts
+      setTimeout(() => {
+        try {
+          const videoElement = document.querySelector('#qr-reader video') as HTMLVideoElement
+          if (videoElement && videoElement.srcObject) {
+            const stream = videoElement.srcObject as MediaStream
+            const track = stream.getVideoTracks()[0]
+            if (track) {
+              videoTrackRef.current = track
+              // Check if zoom is supported
+              const capabilities = track.getCapabilities() as MediaTrackCapabilities & { zoom?: { min: number; max: number } }
+              if (capabilities.zoom) {
+                setZoomSupported(true)
+                setMaxZoom(capabilities.zoom.max || 4)
+                console.log("📷 Zoom supported, max zoom:", capabilities.zoom.max)
+              } else {
+                console.log("📷 Zoom not supported on this device")
+              }
+            }
+          }
+        } catch (err) {
+          console.log("Could not get video track for zoom:", err)
+        }
+      }, 1000)
     } catch (err) {
       console.error("Error starting camera:", err)
       let errorMsg = err instanceof Error ? err.message : "Failed to access camera"
@@ -293,7 +322,39 @@ export default function StudentAttendancePage() {
       }
       html5QrCodeRef.current = null
     }
+    // Reset zoom state
+    videoTrackRef.current = null
+    setZoomLevel(1)
+    setMaxZoom(1)
+    setZoomSupported(false)
     setScanning(false)
+  }
+
+  // Zoom control functions
+  const handleZoomIn = async () => {
+    if (!videoTrackRef.current || !zoomSupported) return
+    const newZoom = Math.min(zoomLevel + 0.5, maxZoom)
+    try {
+      await videoTrackRef.current.applyConstraints({
+        advanced: [{ zoom: newZoom } as MediaTrackConstraintSet]
+      })
+      setZoomLevel(newZoom)
+    } catch (err) {
+      console.error("Error zooming in:", err)
+    }
+  }
+
+  const handleZoomOut = async () => {
+    if (!videoTrackRef.current || !zoomSupported) return
+    const newZoom = Math.max(zoomLevel - 0.5, 1)
+    try {
+      await videoTrackRef.current.applyConstraints({
+        advanced: [{ zoom: newZoom } as MediaTrackConstraintSet]
+      })
+      setZoomLevel(newZoom)
+    } catch (err) {
+      console.error("Error zooming out:", err)
+    }
   }
 
   const handleManualEntry = () => {
@@ -697,6 +758,34 @@ export default function StudentAttendancePage() {
                       {/* Html5Qrcode scanner will render here */}
                       <div id="qr-reader" className="w-full"></div>
                     </div>
+                    
+                    {/* Zoom Controls */}
+                    {zoomSupported && (
+                      <div className="flex items-center justify-center gap-4 p-3 bg-gray-100 rounded-lg">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleZoomOut}
+                          disabled={zoomLevel <= 1}
+                          className="touch-target"
+                        >
+                          <ZoomOut className="h-4 w-4" />
+                        </Button>
+                        <span className="text-sm font-medium min-w-[60px] text-center">
+                          {zoomLevel.toFixed(1)}x
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleZoomIn}
+                          disabled={zoomLevel >= maxZoom}
+                          className="touch-target"
+                        >
+                          <ZoomIn className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    
                     <Button
                       className="w-full touch-target ripple"
                       variant="destructive"
