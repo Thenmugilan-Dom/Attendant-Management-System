@@ -634,7 +634,7 @@ export default function TeacherDashboard() {
     try {
       const sessionCode = generateSessionCode()
       const today = new Date().toISOString().split("T")[0]
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes from now
+      const expiresAt = new Date(Date.now() + 45 * 60 * 1000).toISOString() // 45 minutes from now
 
       console.log("🔄 Creating session with:", {
         teacher_id: user.id,
@@ -725,10 +725,45 @@ export default function TeacherDashboard() {
       setActiveSession(null)
       setSelectedClassId("")
       setSelectedSubjectId("")
+      setTimeRemaining(0)
+      setSessionExpired(false)
+      setLiveAttendance(null)
     } catch (error) {
       console.error("❌ Caught error ending session:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Extend session time by 10 minutes
+  const handleExtendSession = async () => {
+    if (!activeSession) return
+
+    try {
+      const newExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+      
+      const { data, error } = await supabase
+        .from("attendance_sessions")
+        .update({ expires_at: newExpiresAt })
+        .eq("id", activeSession.id)
+        .select(`
+          *,
+          classes (class_name, section),
+          subjects (subject_name, subject_code)
+        `)
+        .single()
+
+      if (error) {
+        console.error("❌ Error extending session:", error)
+        alert("Failed to extend session time")
+        return
+      }
+
+      setActiveSession(data)
+      setSessionExpired(false)
+      alert("✅ Session extended by 10 minutes!")
+    } catch (error) {
+      console.error("❌ Caught error extending session:", error)
     }
   }
 
@@ -1206,14 +1241,25 @@ export default function TeacherDashboard() {
                       </div>
                   )}
 
-                  <Button
-                    className="w-full text-sm sm:text-base"
-                    variant="destructive"
-                    onClick={handleEndSession}
-                    disabled={loading}
-                  >
-                    End Session
-                  </Button>
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      className="flex-1 text-sm sm:text-base"
+                      variant="outline"
+                      onClick={handleExtendSession}
+                      disabled={loading}
+                    >
+                      ⏰ +10 min
+                    </Button>
+                    <Button
+                      className="flex-1 text-sm sm:text-base"
+                      variant="destructive"
+                      onClick={handleEndSession}
+                      disabled={loading}
+                    >
+                      End Session
+                    </Button>
+                  </div>
                 </>
               )}
             </CardContent>
