@@ -120,6 +120,10 @@ export default function TeacherDashboard() {
   const [odSelectedClassId, setOdSelectedClassId] = useState("")
   const [showODRequestsView, setShowODRequestsView] = useState(false)
 
+  // Session timer
+  const [timeRemaining, setTimeRemaining] = useState<number>(0)
+  const [sessionExpired, setSessionExpired] = useState(false)
+
   // Fetch pending OD requests for this teacher
   const fetchPendingODRequests = async (teacherId: string) => {
     try {
@@ -238,6 +242,39 @@ export default function TeacherDashboard() {
       console.error("Error fetching live attendance:", error)
     }
   }
+
+  // Timer for session expiry countdown
+  useEffect(() => {
+    if (!activeSession || !activeSession.expires_at) {
+      setTimeRemaining(0)
+      setSessionExpired(false)
+      return
+    }
+
+    // Initialize timer
+    const calculateTimeRemaining = () => {
+      const now = new Date().getTime()
+      const expiresAt = new Date(activeSession.expires_at).getTime()
+      return Math.max(0, Math.floor((expiresAt - now) / 1000))
+    }
+
+    // Set initial time
+    setTimeRemaining(calculateTimeRemaining())
+    setSessionExpired(false)
+
+    // Update every second
+    const interval = setInterval(() => {
+      const remaining = calculateTimeRemaining()
+      setTimeRemaining(remaining)
+      
+      if (remaining === 0 && !sessionExpired) {
+        setSessionExpired(true)
+        console.log("⏰ Session expired")
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [activeSession, sessionExpired])
 
   // Auto-refresh live attendance when session is active
   useEffect(() => {
@@ -802,6 +839,12 @@ export default function TeacherDashboard() {
     }
   }
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
   if (!user) {
     return null
   }
@@ -1088,6 +1131,22 @@ export default function TeacherDashboard() {
                     </div>
                     <div className="text-xs sm:text-sm text-muted-foreground">
                       Session Code: {activeSession.session_code}
+                    </div>
+                    
+                    {/* Session Timer */}
+                    <div className={`p-3 rounded-md border ${sessionExpired ? 'bg-red-50 border-red-200' : timeRemaining <= 60 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs sm:text-sm font-medium">⏱️ Time Remaining:</p>
+                        <p className={`text-lg sm:text-xl font-bold ${sessionExpired ? 'text-red-600' : timeRemaining <= 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                          {sessionExpired ? "EXPIRED" : formatTime(timeRemaining)}
+                        </p>
+                      </div>
+                      {timeRemaining <= 60 && !sessionExpired && (
+                        <p className="text-xs text-yellow-700 mt-1">⚠️ Session expiring soon!</p>
+                      )}
+                      {sessionExpired && (
+                        <p className="text-xs text-red-700 mt-1">❌ Session expired. End and start new session.</p>
+                      )}
                     </div>
                     
                     {/* Live Attendance Counter */}

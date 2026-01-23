@@ -56,6 +56,7 @@ export default function StudentAttendancePage() {
   const [zoomSupported, setZoomSupported] = useState<boolean>(false)
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const videoTrackRef = useRef<MediaStreamTrack | null>(null)
+  const expiredToastShownRef = useRef<boolean>(false)
   const { showToast, ToastContainer } = useToast()
 
   // Track client-side mounting to prevent hydration errors
@@ -67,6 +68,9 @@ export default function StudentAttendancePage() {
   useEffect(() => {
     if (!sessionData || !sessionData.expiresAt) {
       console.log("❌ No session data or expiresAt found for timer:", { sessionData: !!sessionData, expiresAt: sessionData?.expiresAt })
+      setTimeRemaining(0)
+      setSessionExpired(false)
+      expiredToastShownRef.current = false
       return
     }
 
@@ -76,26 +80,31 @@ export default function StudentAttendancePage() {
       remainingSeconds: sessionData.remainingSeconds
     })
 
-    // Initialize with remaining seconds if available
-    if (sessionData.remainingSeconds !== undefined) {
-      setTimeRemaining(sessionData.remainingSeconds)
-      console.log("⏱️ Initial timer set to:", sessionData.remainingSeconds, "seconds")
-    }
+    // Reset toast flag for new session
+    expiredToastShownRef.current = false
 
-    let hasShownExpiredToast = false // Flag to prevent repeated notifications
-
-    const interval = setInterval(() => {
+    // Calculate time remaining
+    const calculateTimeRemaining = () => {
       const now = new Date().getTime()
       const expiresAt = new Date(sessionData.expiresAt!).getTime()
-      const diff = Math.max(0, Math.floor((expiresAt - now) / 1000))
-      
-      setTimeRemaining(diff)
-      console.log("⏱️ Timer update:", diff, "seconds remaining")
+      return Math.max(0, Math.floor((expiresAt - now) / 1000))
+    }
 
-      // Mark as expired when time runs out (show toast only once)
-      if (diff === 0 && !sessionExpired && !hasShownExpiredToast) {
+    // Initialize with calculated time
+    const initialTime = calculateTimeRemaining()
+    setTimeRemaining(initialTime)
+    setSessionExpired(initialTime === 0)
+    console.log("⏱️ Initial timer set to:", initialTime, "seconds")
+
+    // Update timer every second
+    const interval = setInterval(() => {
+      const remaining = calculateTimeRemaining()
+      setTimeRemaining(remaining)
+      
+      // Mark as expired when time runs out (show toast only once using ref)
+      if (remaining === 0 && !expiredToastShownRef.current) {
+        expiredToastShownRef.current = true
         setSessionExpired(true)
-        hasShownExpiredToast = true
         showToast("Session has expired!", "error")
         console.log("⏰ Session expired - attendance can no longer be marked")
       }
@@ -105,7 +114,7 @@ export default function StudentAttendancePage() {
       clearInterval(interval)
       console.log("🔄 Timer cleanup completed")
     }
-  }, [sessionData, sessionExpired])
+  }, [sessionData?.sessionId, sessionData?.expiresAt, showToast])
 
   // Cleanup on unmount
   useEffect(() => {
