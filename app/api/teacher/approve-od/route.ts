@@ -50,8 +50,9 @@ export async function POST(request: NextRequest) {
     }
 
     const request_ = odRequest[0];
-    const student = request_.students?.[0];
-    const classData = request_.classes?.[0];
+    // students and classes are single objects (not arrays) because od_requests has single foreign keys
+    const student = request_.students as { id: string; name: string; email: string } | null;
+    const classData = request_.classes as { id: string; class_name: string } | null;
 
     // Verify teacher is the one assigned to this request
     if (request_.teacher_id !== teacherId) {

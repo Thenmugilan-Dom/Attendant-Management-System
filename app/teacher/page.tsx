@@ -246,12 +246,14 @@ export default function TeacherDashboard() {
   // Timer for session expiry countdown
   useEffect(() => {
     if (!activeSession || !activeSession.expires_at) {
+      console.log("⏱️ Timer: No activeSession or no expires_at", { activeSession: !!activeSession, expires_at: activeSession?.expires_at })
       setTimeRemaining(0)
       setSessionExpired(false)
       return
     }
 
     const expiresAt = new Date(activeSession.expires_at).getTime()
+    console.log("⏱️ Timer starting:", { sessionId: activeSession.id, expiresAt: activeSession.expires_at, expiresAtMs: expiresAt })
     
     // Initialize timer
     const calculateTimeRemaining = () => {
@@ -567,7 +569,9 @@ export default function TeacherDashboard() {
         .limit(1)
 
       if (!activeSessionError && activeSessionDataArray && activeSessionDataArray.length > 0) {
-        setActiveSession(activeSessionDataArray[0])
+        const sessionData = activeSessionDataArray[0]
+        console.log("📍 Active session found:", sessionData.id, "expires_at:", sessionData.expires_at)
+        setActiveSession(sessionData)
       }
 
       // Fetch today's stats
