@@ -64,6 +64,11 @@ export default function ODRequestPage() {
 
   const [loading, setLoading] = useState(false);
 
+  // Debug: Component mounted
+  useState(() => {
+    console.log('✅ OD Request page loaded successfully');
+  }, []);
+
   // Step 1: Handle email submission
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
