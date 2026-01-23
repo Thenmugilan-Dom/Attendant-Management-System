@@ -1133,20 +1133,30 @@ export default function TeacherDashboard() {
                       Session Code: {activeSession.session_code}
                     </div>
                   </div>
-                    
-                  {/* Session Timer */}
-                  <div className={`mt-3 p-3 rounded-md border ${sessionExpired ? 'bg-red-50 border-red-200' : timeRemaining <= 60 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs sm:text-sm font-medium">⏱️ Time Remaining:</p>
-                      <p className={`text-lg sm:text-xl font-bold ${sessionExpired ? 'text-red-600' : timeRemaining <= 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                        {sessionExpired ? "EXPIRED" : formatTime(timeRemaining)}
-                      </p>
+
+                  {/* Session Timer - ALWAYS SHOW */}
+                  <div className={`mt-4 p-4 rounded-lg border-2 font-semibold ${
+                    sessionExpired 
+                      ? 'bg-red-100 border-red-500 text-red-800' 
+                      : timeRemaining <= 60 
+                      ? 'bg-yellow-100 border-yellow-500 text-yellow-800' 
+                      : 'bg-green-100 border-green-500 text-green-800'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-base">⏱️ Session Time Remaining</span>
+                      <span className="text-2xl tabular-nums">
+                        {sessionExpired ? "EXPIRED ❌" : formatTime(timeRemaining)}
+                      </span>
                     </div>
-                    {timeRemaining <= 60 && !sessionExpired && (
-                      <p className="text-xs text-yellow-700 mt-1">⚠️ Session expiring soon!</p>
+                    {timeRemaining > 0 && timeRemaining <= 60 && !sessionExpired && (
+                      <div className="text-sm mt-2 pt-2 border-t-2 border-yellow-400">
+                        ⚠️ Hurry! Session expiring in {timeRemaining} seconds
+                      </div>
                     )}
                     {sessionExpired && (
-                      <p className="text-xs text-red-700 mt-1">❌ Session expired. End and start new session.</p>
+                      <div className="text-sm mt-2 pt-2 border-t-2 border-red-400">
+                        Please end this session and start a new one
+                      </div>
                     )}
                   </div>
                     
