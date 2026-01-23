@@ -58,6 +58,7 @@ export default function StudentAttendancePage() {
   const videoTrackRef = useRef<MediaStreamTrack | null>(null)
   const expiredToastShownRef = useRef<boolean>(false)
   const httpsToastShownRef = useRef<boolean>(false)
+  const qrScannedRef = useRef<boolean>(false)
   const { showToast, ToastContainer } = useToast()
 
   // Track client-side mounting to prevent hydration errors
@@ -176,6 +177,12 @@ export default function StudentAttendancePage() {
         },
         async (decodedText) => {
           // Success callback when QR code is scanned
+          // Prevent multiple scans from firing
+          if (qrScannedRef.current) {
+            return
+          }
+          qrScannedRef.current = true
+          
           try {
             let sessionCode = ""
             
@@ -249,6 +256,8 @@ export default function StudentAttendancePage() {
             stopScanning()
           } catch (e) {
             console.error("Invalid QR code format or fetch error:", e)
+            // Reset so user can try scanning again
+            qrScannedRef.current = false
             const errorMsg = "Invalid QR code or connection error"
             // Only show toast if it's a new error (prevent repeated toasts)
             if (errorMsg !== lastError) {
@@ -323,6 +332,8 @@ export default function StudentAttendancePage() {
       return
     }
     
+    // Reset QR scanned flag for new scan
+    qrScannedRef.current = false
     setError("")
     setScanning(true)
     // The actual scanner initialization happens in useEffect
