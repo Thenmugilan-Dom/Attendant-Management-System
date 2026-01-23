@@ -1,6 +1,4 @@
 import { LoginForm } from "@/components/login-form";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
 
 export default function Home() {
   return (
