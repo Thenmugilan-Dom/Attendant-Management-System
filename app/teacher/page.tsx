@@ -1132,25 +1132,26 @@ export default function TeacherDashboard() {
                     <div className="text-xs sm:text-sm text-muted-foreground">
                       Session Code: {activeSession.session_code}
                     </div>
+                  </div>
                     
-                    {/* Session Timer */}
-                    <div className={`p-3 rounded-md border ${sessionExpired ? 'bg-red-50 border-red-200' : timeRemaining <= 60 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs sm:text-sm font-medium">⏱️ Time Remaining:</p>
-                        <p className={`text-lg sm:text-xl font-bold ${sessionExpired ? 'text-red-600' : timeRemaining <= 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                          {sessionExpired ? "EXPIRED" : formatTime(timeRemaining)}
-                        </p>
-                      </div>
-                      {timeRemaining <= 60 && !sessionExpired && (
-                        <p className="text-xs text-yellow-700 mt-1">⚠️ Session expiring soon!</p>
-                      )}
-                      {sessionExpired && (
-                        <p className="text-xs text-red-700 mt-1">❌ Session expired. End and start new session.</p>
-                      )}
+                  {/* Session Timer */}
+                  <div className={`mt-3 p-3 rounded-md border ${sessionExpired ? 'bg-red-50 border-red-200' : timeRemaining <= 60 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs sm:text-sm font-medium">⏱️ Time Remaining:</p>
+                      <p className={`text-lg sm:text-xl font-bold ${sessionExpired ? 'text-red-600' : timeRemaining <= 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                        {sessionExpired ? "EXPIRED" : formatTime(timeRemaining)}
+                      </p>
                     </div>
+                    {timeRemaining <= 60 && !sessionExpired && (
+                      <p className="text-xs text-yellow-700 mt-1">⚠️ Session expiring soon!</p>
+                    )}
+                    {sessionExpired && (
+                      <p className="text-xs text-red-700 mt-1">❌ Session expired. End and start new session.</p>
+                    )}
+                  </div>
                     
-                    {/* Live Attendance Counter */}
-                    {liveAttendance && (
+                  {/* Live Attendance Counter */}
+                  {liveAttendance && (
                       <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg">
                         <div className="flex items-center justify-between">
                           <div>
@@ -1180,8 +1181,8 @@ export default function TeacherDashboard() {
                           </div>
                         </div>
                       </div>
-                    )}
-                  </div>
+                  )}
+
                   <Button
                     className="w-full text-sm sm:text-base"
                     variant="destructive"
