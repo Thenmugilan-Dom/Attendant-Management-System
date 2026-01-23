@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from "lucide-react"
 
@@ -75,14 +75,14 @@ export function Toast({ message, type, duration = 5000, onClose }: ToastProps) {
 export function useToast() {
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: ToastType }>>([])
 
-  const showToast = (message: string, type: ToastType = "info") => {
+  const showToast = useCallback((message: string, type: ToastType = "info") => {
     const id = Math.random().toString(36).substr(2, 9)
     setToasts((prev) => [...prev, { id, message, type }])
-  }
+  }, [])
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id))
-  }
+  }, [])
 
   const ToastContainer = () => (
     <div className="fixed inset-0 pointer-events-none z-50 p-4">
