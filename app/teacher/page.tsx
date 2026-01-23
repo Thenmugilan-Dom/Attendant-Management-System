@@ -251,6 +251,8 @@ export default function TeacherDashboard() {
       return
     }
 
+    console.log("🕐 Timer starting for session:", activeSession.id, "expires at:", activeSession.expires_at)
+
     // Initialize timer
     const calculateTimeRemaining = () => {
       const now = new Date().getTime()
@@ -259,22 +261,26 @@ export default function TeacherDashboard() {
     }
 
     // Set initial time
-    setTimeRemaining(calculateTimeRemaining())
-    setSessionExpired(false)
+    const initialTime = calculateTimeRemaining()
+    setTimeRemaining(initialTime)
+    console.log("⏰ Initial time remaining:", initialTime)
 
     // Update every second
     const interval = setInterval(() => {
       const remaining = calculateTimeRemaining()
       setTimeRemaining(remaining)
       
-      if (remaining === 0 && !sessionExpired) {
+      if (remaining === 0) {
         setSessionExpired(true)
         console.log("⏰ Session expired")
       }
     }, 1000)
 
-    return () => clearInterval(interval)
-  }, [activeSession, sessionExpired])
+    return () => {
+      clearInterval(interval)
+      console.log("🕐 Timer cleared")
+    }
+  }, [activeSession?.id])
 
   // Auto-refresh live attendance when session is active
   useEffect(() => {
@@ -1144,9 +1150,12 @@ export default function TeacherDashboard() {
                   }`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-base">⏱️ Session Time Remaining</span>
-                      <span className="text-2xl tabular-nums">
-                        {sessionExpired ? "EXPIRED ❌" : formatTime(timeRemaining)}
+                      <span className="text-2xl tabular-nums font-mono">
+                        {sessionExpired ? "EXPIRED ❌" : `${formatTime(timeRemaining)}`}
                       </span>
+                    </div>
+                    <div className="text-xs text-gray-600 mb-2">
+                      DEBUG: timeRemaining={timeRemaining} sessionExpired={sessionExpired ? 'true' : 'false'}
                     </div>
                     {timeRemaining > 0 && timeRemaining <= 60 && !sessionExpired && (
                       <div className="text-sm mt-2 pt-2 border-t-2 border-yellow-400">
