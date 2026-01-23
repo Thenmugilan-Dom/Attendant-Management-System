@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -63,9 +63,11 @@ export default function ODRequestPage() {
   const [odRequests, setOdRequests] = useState<ODRequest[]>([]);
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
 
   // Debug: Component mounted
-  useState(() => {
+  useEffect(() => {
     console.log('✅ OD Request page loaded successfully');
   }, []);
 
@@ -73,9 +75,12 @@ export default function ODRequestPage() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+    setSuccess('');
 
     try {
       if (!emailInput.trim()) {
+        setError('Please enter your email address');
         setLoading(false);
         return;
       }
@@ -84,6 +89,7 @@ export default function ODRequestPage() {
 
       // Validate email domain
       if (!emailLower.endsWith('@kprcas.ac.in') && !emailLower.endsWith('@gmail.com')) {
+        setError('Only @kprcas.ac.in and @gmail.com emails are allowed');
         setLoading(false);
         return;
       }
@@ -102,6 +108,7 @@ export default function ODRequestPage() {
         .limit(1);
 
       if (studentError || !students || students.length === 0) {
+        setError('Student not found. Please check your email address or contact admin.');
         setLoading(false);
         return;
       }
@@ -185,20 +192,25 @@ export default function ODRequestPage() {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+    setSuccess('');
 
     try {
       if (!studentData) {
+        setError('Session expired. Please enter your email again.');
         setLoading(false);
         return;
       }
 
       if (!selectedTeacherId || !selectedAdminId || !odStartDate || !odEndDate || !reason.trim()) {
+        setError('Please fill in all required fields');
         setLoading(false);
         return;
       }
 
       // Validate date range
       if (new Date(odStartDate) > new Date(odEndDate)) {
+        setError('End date must be after or equal to start date');
         setLoading(false);
         return;
       }
@@ -223,6 +235,9 @@ export default function ODRequestPage() {
       if (!response.ok) {
         throw new Error(result.error || 'Failed to submit OD request');
       }
+
+      // Show success message
+      setSuccess('OD request submitted successfully! You will receive an email notification.');
 
       // Reset form
       setOdStartDate('');
@@ -253,8 +268,9 @@ export default function ODRequestPage() {
           ? Math.ceil((new Date(req.od_end_date).getTime() - new Date(req.od_start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
           : 0
       })));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting OD request:', error);
+      setError(error.message || 'Failed to submit OD request. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -306,6 +322,21 @@ export default function ODRequestPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 p-4">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-800 mb-8 text-center">On Duty (OD) Request</h1>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {success && (
+          <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+            ✅ {success}
+          </div>
+        )}
 
         {/* STEP 1: EMAIL ENTRY */}
         {step === 'email' && (
