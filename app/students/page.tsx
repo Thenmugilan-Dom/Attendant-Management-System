@@ -177,11 +177,20 @@ export default function StudentAttendancePage() {
         },
         async (decodedText) => {
           // Success callback when QR code is scanned
-          // Prevent multiple scans from firing
+          // Prevent multiple scans from firing - check and set atomically
           if (qrScannedRef.current) {
             return
           }
           qrScannedRef.current = true
+          
+          // Stop scanner immediately to prevent more callbacks
+          try {
+            if (html5QrCodeRef.current) {
+              await html5QrCodeRef.current.stop()
+            }
+          } catch (stopErr) {
+            console.log("Scanner already stopped")
+          }
           
           try {
             let sessionCode = ""
