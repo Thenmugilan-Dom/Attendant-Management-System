@@ -57,6 +57,7 @@ export default function StudentAttendancePage() {
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const videoTrackRef = useRef<MediaStreamTrack | null>(null)
   const expiredToastShownRef = useRef<boolean>(false)
+  const httpsToastShownRef = useRef<boolean>(false)
   const { showToast, ToastContainer } = useToast()
 
   // Track client-side mounting to prevent hydration errors
@@ -143,7 +144,10 @@ export default function StudentAttendancePage() {
       // Check if we're in a secure context (HTTPS or localhost)
       if (!window.isSecureContext && window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.')) {
         setError("Camera requires HTTPS. Please use manual entry or open on Vercel deployment.")
-        showToast("Camera requires HTTPS connection", "error")
+        if (!httpsToastShownRef.current) {
+          httpsToastShownRef.current = true
+          showToast("Camera requires HTTPS connection", "error")
+        }
         setScanning(false)
         return
       }
@@ -312,7 +316,10 @@ export default function StudentAttendancePage() {
   const startScanning = () => {
     // Check HTTPS before attempting to start camera
     if (!window.isSecureContext && window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.')) {
-      showToast("Camera requires HTTPS. Please use 'Enter Session Code Manually' button.", "error")
+      if (!httpsToastShownRef.current) {
+        httpsToastShownRef.current = true
+        showToast("Camera requires HTTPS. Please use 'Enter Session Code Manually' button.", "error")
+      }
       return
     }
     
@@ -369,7 +376,7 @@ export default function StudentAttendancePage() {
   const handleManualEntry = () => {
     setStep("code")
     setMessage("Enter the session code provided by your teacher")
-    showToast("Using manual entry mode", "info")
+    // No toast here - it's not needed and could be annoying
   }
 
   const handleVerifySessionCode = async (e: React.FormEvent) => {
