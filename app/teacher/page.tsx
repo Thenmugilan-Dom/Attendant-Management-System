@@ -251,19 +251,25 @@ export default function TeacherDashboard() {
       return
     }
 
-    console.log("🕐 Timer starting for session:", activeSession.id, "expires at:", activeSession.expires_at)
-
+    const expiresAt = new Date(activeSession.expires_at).getTime()
+    
     // Initialize timer
     const calculateTimeRemaining = () => {
       const now = new Date().getTime()
-      const expiresAt = new Date(activeSession.expires_at).getTime()
       return Math.max(0, Math.floor((expiresAt - now) / 1000))
     }
 
-    // Set initial time
+    // Set initial time immediately
     const initialTime = calculateTimeRemaining()
     setTimeRemaining(initialTime)
-    console.log("⏰ Initial time remaining:", initialTime)
+    
+    // Check if already expired
+    if (initialTime === 0) {
+      setSessionExpired(true)
+      return
+    }
+    
+    setSessionExpired(false)
 
     // Update every second
     const interval = setInterval(() => {
@@ -272,15 +278,14 @@ export default function TeacherDashboard() {
       
       if (remaining === 0) {
         setSessionExpired(true)
-        console.log("⏰ Session expired")
+        clearInterval(interval)
       }
     }, 1000)
 
     return () => {
       clearInterval(interval)
-      console.log("🕐 Timer cleared")
     }
-  }, [activeSession?.id])
+  }, [activeSession?.id, activeSession?.expires_at])
 
   // Auto-refresh live attendance when session is active
   useEffect(() => {
@@ -312,8 +317,6 @@ export default function TeacherDashboard() {
       const currentHours = String(now.getHours()).padStart(2, '0')
       const currentMinutes = String(now.getMinutes()).padStart(2, '0')
       const currentTime = `${currentHours}:${currentMinutes}`
-
-      console.log(`⏰ Checking scheduled sessions... Current time: ${currentTime}`)
 
       // Check for auto-stop first (sessions that should end)
       if (activeSession) {
@@ -1153,9 +1156,6 @@ export default function TeacherDashboard() {
                       <span className="text-2xl tabular-nums font-mono">
                         {sessionExpired ? "EXPIRED ❌" : `${formatTime(timeRemaining)}`}
                       </span>
-                    </div>
-                    <div className="text-xs text-gray-600 mb-2">
-                      DEBUG: timeRemaining={timeRemaining} sessionExpired={sessionExpired ? 'true' : 'false'}
                     </div>
                     {timeRemaining > 0 && timeRemaining <= 60 && !sessionExpired && (
                       <div className="text-sm mt-2 pt-2 border-t-2 border-yellow-400">
