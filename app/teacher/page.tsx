@@ -1715,7 +1715,7 @@ export default function TeacherDashboard() {
           <CardContent>
             <div className="space-y-4">
               {/* Filters */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 {/* Class Filter */}
                 <div className="space-y-2">
                   <Label htmlFor="report-class" className="text-xs sm:text-sm">Filter by Class (Optional)</Label>
