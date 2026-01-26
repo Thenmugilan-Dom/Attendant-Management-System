@@ -59,6 +59,7 @@ export default function StudentAttendancePage() {
   const expiredToastShownRef = useRef<boolean>(false)
   const httpsToastShownRef = useRef<boolean>(false)
   const qrScannedRef = useRef<boolean>(false)
+  const successToastShownRef = useRef<boolean>(false)
   const { showToast, ToastContainer } = useToast()
 
   // Track client-side mounting to prevent hydration errors
@@ -664,7 +665,11 @@ export default function StudentAttendancePage() {
       }
 
       console.log("✅ Attendance marked successfully!")
-      showToast("Attendance marked successfully! 🎉", "success")
+      // Show success toast only once
+      if (!successToastShownRef.current) {
+        successToastShownRef.current = true
+        showToast("Attendance marked successfully! 🎉", "success")
+      }
       setMessage("Attendance marked successfully!")
       setStep("success")
     } catch (err) {
@@ -696,6 +701,8 @@ export default function StudentAttendancePage() {
     setSessionExpired(false)
     setTimeRemaining(0)
     setLastError("")
+    successToastShownRef.current = false
+    qrScannedRef.current = false
   }
 
   return (

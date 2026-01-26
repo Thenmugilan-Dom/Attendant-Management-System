@@ -634,7 +634,7 @@ export default function TeacherDashboard() {
     try {
       const sessionCode = generateSessionCode()
       const today = new Date().toISOString().split("T")[0]
-      const expiresAt = new Date(Date.now() + 45 * 60 * 1000).toISOString() // 45 minutes from now
+      const expiresAt = new Date(Date.now() + 47 * 60 * 1000).toISOString() // 47 minutes from now (45 + 2 extra)
 
       console.log("🔄 Creating session with:", {
         teacher_id: user.id,

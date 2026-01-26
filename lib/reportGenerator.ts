@@ -302,130 +302,204 @@ interface ComprehensiveReportData {
 }
 
 export function generateComprehensivePDF(data: ComprehensiveReportData, teacherName: string) {
-  const doc = new jsPDF()
-  let yPos = 10
+  // Use landscape for matrix format with many date columns
+  const doc = new jsPDF({ orientation: 'landscape' })
+
+  // Collect all unique students across all sessions
+  const studentMap = new Map<string, { student_id: string; name: string; email: string }>()
+  
+  data.sessions.forEach(session => {
+    session.records.forEach(record => {
+      const key = record.students.student_id || record.students.email
+      if (!studentMap.has(key)) {
+        studentMap.set(key, {
+          student_id: record.students.student_id,
+          name: record.students.name,
+          email: record.students.email
+        })
+      }
+    })
+  })
+
+  const students = Array.from(studentMap.values()).sort((a, b) => 
+    a.student_id.localeCompare(b.student_id)
+  )
+
+  // Sort sessions by date
+  const sortedSessions = [...data.sessions].sort((a, b) => 
+    new Date(a.session_date).getTime() - new Date(b.session_date).getTime()
+  )
 
   // Header
   doc.setFillColor(59, 130, 246)
-  doc.rect(0, 0, 210, 45, 'F')
+  doc.rect(0, 0, 297, 35, 'F')
   
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(24)
+  doc.setFontSize(20)
   doc.setFont('helvetica', 'bold')
-  doc.text('KPRCAS', 105, 15, { align: 'center' })
+  doc.text('KPRCAS Attendance Matrix Report', 148.5, 12, { align: 'center' })
   
-  doc.setFontSize(18)
-  doc.text('Comprehensive Attendance Report', 105, 25, { align: 'center' })
-  
-  doc.setFontSize(12)
+  doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Teacher: ${teacherName}`, 105, 35, { align: 'center' })
-
-  yPos = 55
-
-  // Report Info
-  doc.setTextColor(0, 0, 0)
-  doc.setFontSize(10)
-  doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 14, yPos)
-  yPos += 6
+  doc.text(`Teacher: ${teacherName} | Generated: ${new Date().toLocaleString('en-IN')}`, 148.5, 22, { align: 'center' })
   
   if (data.filters.startDate || data.filters.endDate) {
-    const dateRange = `Period: ${data.filters.startDate || 'Start'} to ${data.filters.endDate || 'End'}`
-    doc.text(dateRange, 14, yPos)
-    yPos += 6
+    doc.text(`Period: ${data.filters.startDate || 'Start'} to ${data.filters.endDate || 'End'}`, 148.5, 30, { align: 'center' })
   }
 
-  yPos += 5
+  // Build table headers
+  const headers = ['S.No', 'Student ID', 'Name', 'Email']
+  const dateHeaders = sortedSessions.map(session => {
+    const date = new Date(session.session_date).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short'
+    })
+    return `${date}\n${session.subject.subject_code || session.subject.subject_name.substring(0, 4)}`
+  })
+  headers.push(...dateHeaders)
+  headers.push('Present', 'Absent', '%')
 
-  // Overall Summary Section
-  doc.setFillColor(240, 240, 240)
-  doc.rect(14, yPos, 182, 8, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.text('Overall Summary', 16, yPos + 5.5)
-  yPos += 12
+  // Build table data
+  const tableData = students.map((student, index) => {
+    const row = [
+      (index + 1).toString(),
+      student.student_id,
+      student.name,
+      student.email
+    ]
 
-  const summaryData = [
-    ['Total Sessions', data.summary.total_sessions.toString()],
-    ['Total Students Enrolled', data.summary.total_students.toString()],
-    ['Total Present', data.summary.total_present.toString()],
-    ['Total Absent', data.summary.total_absent.toString()],
-    ['Average Attendance', `${data.summary.average_attendance}%`]
-  ]
+    let presentCount = 0
+    let absentCount = 0
 
-  autoTable(doc, {
-    startY: yPos,
-    head: [['Metric', 'Value']],
-    body: summaryData,
-    theme: 'striped',
-    headStyles: { fillColor: [59, 130, 246], fontSize: 10, fontStyle: 'bold' },
-    styles: { fontSize: 10, cellPadding: 4 },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 100 },
-      1: { halign: 'center', cellWidth: 82 }
-    }
+    sortedSessions.forEach(session => {
+      const record = session.records.find(r => 
+        r.students.student_id === student.student_id || r.students.email === student.email
+      )
+      if (record) {
+        if (record.status === 'present') {
+          row.push('P')
+          presentCount++
+        } else {
+          row.push('A')
+          absentCount++
+        }
+      } else {
+        row.push('-')
+        absentCount++
+      }
+    })
+
+    const total = presentCount + absentCount
+    const percentage = total > 0 ? Math.round((presentCount / total) * 100) : 0
+    row.push(presentCount.toString(), absentCount.toString(), `${percentage}%`)
+
+    return row
   })
 
-  yPos = (doc as any).lastAutoTable.finalY + 15
+  // Calculate column widths dynamically
+  const fixedColWidth = [10, 22, 35, 45] // S.No, ID, Name, Email
+  const summaryColWidth = [12, 12, 12] // Present, Absent, %
+  const availableWidth = 297 - fixedColWidth.reduce((a, b) => a + b, 0) - summaryColWidth.reduce((a, b) => a + b, 0) - 20
+  const dateColWidth = sortedSessions.length > 0 
+    ? Math.min(18, Math.max(10, availableWidth / sortedSessions.length))
+    : 12
 
-  // Session-wise Breakdown
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.text('Session-wise Breakdown', 14, yPos)
-  yPos += 8
+  const columnStyles: { [key: number]: { cellWidth?: number; halign?: string } } = {
+    0: { cellWidth: fixedColWidth[0], halign: 'center' },
+    1: { cellWidth: fixedColWidth[1] },
+    2: { cellWidth: fixedColWidth[2] },
+    3: { cellWidth: fixedColWidth[3] }
+  }
 
-  const sessionTableData = data.sessions.map((session, index) => [
-    (index + 1).toString(),
-    new Date(session.session_date).toLocaleDateString('en-IN'),
-    session.session_code,
-    `${session.class.class_name} ${session.class.section}`,
-    session.subject.subject_name,
-    session.statistics.total_students.toString(),
-    session.statistics.present.toString(),
-    session.statistics.absent.toString(),
-    `${session.statistics.attendance_percentage}%`
-  ])
+  for (let i = 0; i < sortedSessions.length; i++) {
+    columnStyles[4 + i] = { cellWidth: dateColWidth, halign: 'center' }
+  }
+
+  // Summary columns
+  const summaryStart = 4 + sortedSessions.length
+  columnStyles[summaryStart] = { cellWidth: summaryColWidth[0], halign: 'center' }
+  columnStyles[summaryStart + 1] = { cellWidth: summaryColWidth[1], halign: 'center' }
+  columnStyles[summaryStart + 2] = { cellWidth: summaryColWidth[2], halign: 'center' }
 
   autoTable(doc, {
-    startY: yPos,
-    head: [['#', 'Date', 'Code', 'Class', 'Subject', 'Total', 'Present', 'Absent', '%']],
-    body: sessionTableData,
+    startY: 42,
+    head: [headers],
+    body: tableData,
     theme: 'grid',
-    headStyles: { fillColor: [59, 130, 246], fontSize: 9, fontStyle: 'bold' },
-    styles: { fontSize: 8, cellPadding: 2 },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 25 },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 30 },
-      4: { cellWidth: 35 },
-      5: { cellWidth: 15, halign: 'center' },
-      6: { cellWidth: 18, halign: 'center' },
-      7: { cellWidth: 18, halign: 'center' },
-      8: { cellWidth: 15, halign: 'center' }
+    headStyles: { 
+      fillColor: [59, 130, 246], 
+      fontSize: 6, 
+      fontStyle: 'bold',
+      halign: 'center',
+      valign: 'middle',
+      minCellHeight: 12
     },
-    didDrawPage: (data) => {
+    styles: { 
+      fontSize: 6, 
+      cellPadding: 1,
+      overflow: 'linebreak'
+    },
+    columnStyles: columnStyles,
+    didParseCell: (cellData) => {
+      // Color code P/A cells
+      if (cellData.section === 'body' && cellData.column.index >= 4 && cellData.column.index < 4 + sortedSessions.length) {
+        if (cellData.cell.raw === 'P') {
+          cellData.cell.styles.fillColor = [220, 252, 231] // Green for Present
+          cellData.cell.styles.textColor = [22, 101, 52]
+        } else if (cellData.cell.raw === 'A') {
+          cellData.cell.styles.fillColor = [254, 226, 226] // Red for Absent
+          cellData.cell.styles.textColor = [153, 27, 27]
+        }
+      }
+    },
+    didDrawPage: () => {
       // Footer
       const pageCount = (doc as any).internal.getNumberOfPages()
       doc.setFontSize(8)
       doc.setTextColor(100)
       doc.text(
         `Page ${(doc as any).internal.getCurrentPageInfo().pageNumber} of ${pageCount}`,
-        105,
-        doc.internal.pageSize.height - 10,
+        148.5,
+        doc.internal.pageSize.height - 8,
         { align: 'center' }
       )
     }
   })
 
   // Save PDF
-  const fileName = `Comprehensive_Report_${new Date().toISOString().split('T')[0]}.pdf`
+  const fileName = `Attendance_Matrix_${new Date().toISOString().split('T')[0]}.pdf`
   doc.save(fileName)
 }
 
 export function generateComprehensiveCSV(data: ComprehensiveReportData, teacherName: string) {
-  let csv = 'KPRCAS Comprehensive Attendance Report\n\n'
+  // MATRIX FORMAT: Students as rows, Dates as columns
   
+  // Collect all unique students across all sessions
+  const studentMap = new Map<string, { student_id: string; name: string; email: string }>()
+  
+  data.sessions.forEach(session => {
+    session.records.forEach(record => {
+      const key = record.students.student_id || record.students.email
+      if (!studentMap.has(key)) {
+        studentMap.set(key, {
+          student_id: record.students.student_id,
+          name: record.students.name,
+          email: record.students.email
+        })
+      }
+    })
+  })
+
+  const students = Array.from(studentMap.values()).sort((a, b) => 
+    a.student_id.localeCompare(b.student_id)
+  )
+
+  // Sort sessions by date
+  const sortedSessions = [...data.sessions].sort((a, b) => 
+    new Date(a.session_date).getTime() - new Date(b.session_date).getTime()
+  )
+
+  let csv = 'KPRCAS Attendance Matrix Report\n\n'
   csv += `Teacher,${teacherName}\n`
   csv += `Generated On,${new Date().toLocaleString('en-IN')}\n`
   
@@ -434,52 +508,84 @@ export function generateComprehensiveCSV(data: ComprehensiveReportData, teacherN
   }
   
   csv += '\n'
-  csv += 'OVERALL SUMMARY\n'
-  csv += 'Metric,Value\n'
+  csv += 'SUMMARY\n'
   csv += `Total Sessions,${data.summary.total_sessions}\n`
   csv += `Total Students,${data.summary.total_students}\n`
-  csv += `Total Present,${data.summary.total_present}\n`
-  csv += `Total Absent,${data.summary.total_absent}\n`
-  csv += `Average Attendance,${data.summary.average_attendance}%\n`
-  
-  csv += '\n'
-  csv += 'SESSION-WISE BREAKDOWN\n'
-  csv += 'S.No,Date,Session Code,Class,Subject,Total Students,Present,Absent,Attendance %\n'
-  
-  data.sessions.forEach((session, index) => {
-    csv += `${index + 1},`
-    csv += `${new Date(session.session_date).toLocaleDateString('en-IN')},`
-    csv += `${session.session_code},`
-    csv += `"${session.class.class_name} ${session.class.section}",`
-    csv += `"${session.subject.subject_name}",`
-    csv += `${session.statistics.total_students},`
-    csv += `${session.statistics.present},`
-    csv += `${session.statistics.absent},`
-    csv += `${session.statistics.attendance_percentage}%\n`
-  })
-  
-  // Detailed student-wise data for each session
-  csv += '\n\n'
-  csv += 'DETAILED ATTENDANCE RECORDS\n\n'
-  
-  data.sessions.forEach((session, sessionIndex) => {
-    csv += `\nSession ${sessionIndex + 1}: ${session.session_code} - ${session.class.class_name} ${session.class.section} - ${session.subject.subject_name}\n`
-    csv += `Date: ${new Date(session.session_date).toLocaleDateString('en-IN')}\n`
-    csv += 'S.No,Student ID,Name,Email,Status,Time\n'
-    
-    session.records.forEach((record, index) => {
-      const time = record.marked_at 
-        ? new Date(record.marked_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
-        : '-'
-      
-      csv += `${index + 1},`
-      csv += `${record.students.student_id},`
-      csv += `"${record.students.name}",`
-      csv += `${record.students.email},`
-      csv += `${record.status === 'present' ? 'Present' : 'Absent'},`
-      csv += `${time}\n`
+  csv += `Average Attendance,${data.summary.average_attendance}%\n\n`
+
+  // First header row with dates
+  csv += ',,,,'  // Empty cells for S.No, Student ID, Name, Email
+  sortedSessions.forEach(session => {
+    const date = new Date(session.session_date).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
     })
+    csv += `${date},`
   })
+  csv += '\n'
+
+  // Second header row with subject codes
+  csv += 'S.No,Student ID,Name,Email,'
+  sortedSessions.forEach(session => {
+    csv += `${session.subject.subject_code || session.subject.subject_name.substring(0, 5)},`
+  })
+  csv += 'Total Present,Total Absent,Attendance %\n'
+
+  // Data rows for each student
+  students.forEach((student, index) => {
+    csv += `${index + 1},`
+    csv += `${student.student_id},`
+    csv += `"${student.name}",`
+    csv += `${student.email},`
+
+    let presentCount = 0
+    let absentCount = 0
+
+    // For each session, find this student's attendance
+    sortedSessions.forEach(session => {
+      const record = session.records.find(r => 
+        r.students.student_id === student.student_id || r.students.email === student.email
+      )
+      if (record) {
+        if (record.status === 'present') {
+          csv += 'P,'
+          presentCount++
+        } else {
+          csv += 'A,'
+          absentCount++
+        }
+      } else {
+        csv += '-,'
+        absentCount++
+      }
+    })
+
+    // Add totals for this student
+    const total = presentCount + absentCount
+    const percentage = total > 0 ? Math.round((presentCount / total) * 100) : 0
+    csv += `${presentCount},${absentCount},${percentage}%\n`
+  })
+
+  // Summary rows
+  csv += '\n'
+  csv += ',,,Total Present,'
+  sortedSessions.forEach(session => {
+    csv += `${session.statistics.present},`
+  })
+  csv += '\n'
+
+  csv += ',,,Total Absent,'
+  sortedSessions.forEach(session => {
+    csv += `${session.statistics.absent},`
+  })
+  csv += '\n'
+
+  csv += ',,,Attendance %,'
+  sortedSessions.forEach(session => {
+    csv += `${session.statistics.attendance_percentage}%,`
+  })
+  csv += '\n'
 
   // Download CSV
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -487,7 +593,7 @@ export function generateComprehensiveCSV(data: ComprehensiveReportData, teacherN
   const url = URL.createObjectURL(blob)
   
   link.setAttribute('href', url)
-  link.setAttribute('download', `Comprehensive_Report_${new Date().toISOString().split('T')[0]}.csv`)
+  link.setAttribute('download', `Attendance_Matrix_${new Date().toISOString().split('T')[0]}.csv`)
   link.style.visibility = 'hidden'
   
   document.body.appendChild(link)
