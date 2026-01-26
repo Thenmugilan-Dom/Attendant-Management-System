@@ -10,6 +10,7 @@ import { createClient } from "@supabase/supabase-js"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import * as XLSX from "xlsx"
+import { generateMatrixCSV, generateMatrixPDF } from "@/lib/reportGenerator"
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -294,6 +295,48 @@ export default function TeacherReports() {
     XLSX.writeFile(wb, `attendance_report_${period}_${Date.now()}.xlsx`)
   }
 
+  const exportToMatrix = (format: 'pdf' | 'csv') => {
+    if (!reportData || !teacher) return
+
+    // Get selected class and subject names
+    const selectedClassData = assignments.find(a => a.class.id === selectedClass)
+    const selectedSubjectData = selectedClassData?.subjects.find(s => s.id === selectedSubject)
+
+    // Transform reportData to matrix format
+    const matrixData = {
+      sessions: reportData.session_wise.map((session: any) => ({
+        session_id: session.session_id,
+        session_code: session.session_code,
+        session_date: session.date,
+        class: { class_name: session.class, section: '' },
+        subject: { subject_name: session.subject, subject_code: session.subject_code },
+        records: session.students.map((student: any) => ({
+          student_id: student.id,
+          student_info: {
+            student_id: student.student_id,
+            name: student.name,
+            email: student.email
+          },
+          status: student.status,
+          marked_at: student.marked_at
+        }))
+      })),
+      className: selectedClassData ? `${selectedClassData.class.class_name} ${selectedClassData.class.section}` : 'All Classes',
+      subjectName: selectedSubjectData?.subject_name || 'All Subjects',
+      teacherName: teacher.name,
+      dateRange: {
+        startDate: new Date(Date.now() - (period === 'daily' ? 1 : period === 'weekly' ? 7 : period === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0]
+      }
+    }
+
+    if (format === 'pdf') {
+      generateMatrixPDF(matrixData)
+    } else {
+      generateMatrixCSV(matrixData)
+    }
+  }
+
   const exportODToPDF = () => {
     if (!odReportData || !teacher) return
 
@@ -486,14 +529,22 @@ export default function TeacherReports() {
                   </div>
 
                   {/* Export Buttons */}
-                  <div className="flex gap-4 mb-6">
-                    <Button onClick={exportToPDF} variant="outline" className="flex-1">
+                  <div className="flex flex-wrap gap-4 mb-6">
+                    <Button onClick={exportToPDF} variant="outline">
                       <FileDown className="h-4 w-4 mr-2" />
                       Export as PDF
                     </Button>
-                    <Button onClick={exportToCSV} variant="outline" className="flex-1">
+                    <Button onClick={exportToCSV} variant="outline">
                       <TableIcon className="h-4 w-4 mr-2" />
                       Export as Excel
+                    </Button>
+                    <Button onClick={() => exportToMatrix('csv')} variant="outline" className="bg-green-50 hover:bg-green-100">
+                      <TableIcon className="h-4 w-4 mr-2" />
+                      Matrix Report (Excel)
+                    </Button>
+                    <Button onClick={() => exportToMatrix('pdf')} variant="outline" className="bg-blue-50 hover:bg-blue-100">
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Matrix Report (PDF)
                     </Button>
                   </div>
 

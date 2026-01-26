@@ -797,3 +797,272 @@ export function generateDateWiseCSV(data: DateWiseReportData) {
   document.body.removeChild(link)
 }
 
+// ============================================================================
+// MATRIX-STYLE REPORT GENERATORS (Student rows x Date columns)
+// ============================================================================
+
+interface MatrixReportData {
+  sessions: Array<{
+    session_id: string
+    session_code: string
+    session_date: string
+    session_time?: string
+    class: { class_name: string; section: string }
+    subject: { subject_name: string; subject_code: string }
+    records: Array<{
+      student_id: string
+      student_info: { student_id: string; name: string; email: string }
+      status: string
+      marked_at: string | null
+    }>
+  }>
+  className: string
+  subjectName: string
+  teacherName: string
+  dateRange: { startDate: string; endDate: string }
+}
+
+export function generateMatrixCSV(data: MatrixReportData) {
+  // Collect all unique students across all sessions
+  const studentMap = new Map<string, { student_id: string; name: string; email: string }>()
+  
+  data.sessions.forEach(session => {
+    session.records.forEach(record => {
+      if (!studentMap.has(record.student_id)) {
+        studentMap.set(record.student_id, record.student_info)
+      }
+    })
+  })
+
+  const students = Array.from(studentMap.values()).sort((a, b) => 
+    a.student_id.localeCompare(b.student_id)
+  )
+
+  // Sort sessions by date
+  const sortedSessions = [...data.sessions].sort((a, b) => 
+    new Date(a.session_date).getTime() - new Date(b.session_date).getTime()
+  )
+
+  // Build header row: S.No, Student ID, Name, Email, then Date columns with Section under each
+  let csv = 'KPRCAS Attendance Matrix Report\n\n'
+  csv += `Class,${data.className}\n`
+  csv += `Subject,${data.subjectName}\n`
+  csv += `Teacher,${data.teacherName}\n`
+  csv += `Period,${data.dateRange.startDate} to ${data.dateRange.endDate}\n`
+  csv += `Generated On,${new Date().toLocaleString('en-IN')}\n\n`
+
+  // First header row with dates
+  csv += ',,,,'  // Empty cells for S.No, Student ID, Name, Email
+  sortedSessions.forEach(session => {
+    const date = new Date(session.session_date).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })
+    csv += `${date},`
+  })
+  csv += '\n'
+
+  // Second header row with Section/Subject info
+  csv += 'S.No,Student ID,Name,Email,'
+  sortedSessions.forEach(session => {
+    csv += `${session.subject.subject_code || 'Section'},`
+  })
+  csv += '\n'
+
+  // Data rows for each student
+  students.forEach((student, index) => {
+    csv += `${index + 1},`
+    csv += `${student.student_id},`
+    csv += `"${student.name}",`
+    csv += `${student.email},`
+
+    // For each session, find this student's attendance
+    sortedSessions.forEach(session => {
+      const record = session.records.find(r => r.student_id === student.student_id)
+      if (record) {
+        csv += `${record.status === 'present' ? 'P' : 'A'},`
+      } else {
+        csv += '-,'
+      }
+    })
+    csv += '\n'
+  })
+
+  // Summary row
+  csv += '\n'
+  csv += ',,,Total Present,'
+  sortedSessions.forEach(session => {
+    const presentCount = session.records.filter(r => r.status === 'present').length
+    csv += `${presentCount},`
+  })
+  csv += '\n'
+
+  csv += ',,,Total Absent,'
+  sortedSessions.forEach(session => {
+    const absentCount = session.records.filter(r => r.status === 'absent').length
+    csv += `${absentCount},`
+  })
+  csv += '\n'
+
+  csv += ',,,Attendance %,'
+  sortedSessions.forEach(session => {
+    const total = session.records.length
+    const present = session.records.filter(r => r.status === 'present').length
+    const percentage = total > 0 ? Math.round((present / total) * 100) : 0
+    csv += `${percentage}%,`
+  })
+  csv += '\n'
+
+  // Download CSV
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+
+  link.setAttribute('href', url)
+  link.setAttribute(
+    'download',
+    `Attendance_Matrix_${data.className}_${data.dateRange.startDate}_to_${data.dateRange.endDate}.csv`
+  )
+  link.style.visibility = 'hidden'
+
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+export function generateMatrixPDF(data: MatrixReportData) {
+  const doc = new jsPDF({ orientation: 'landscape' })
+
+  // Collect all unique students
+  const studentMap = new Map<string, { student_id: string; name: string; email: string }>()
+  
+  data.sessions.forEach(session => {
+    session.records.forEach(record => {
+      if (!studentMap.has(record.student_id)) {
+        studentMap.set(record.student_id, record.student_info)
+      }
+    })
+  })
+
+  const students = Array.from(studentMap.values()).sort((a, b) => 
+    a.student_id.localeCompare(b.student_id)
+  )
+
+  // Sort sessions by date
+  const sortedSessions = [...data.sessions].sort((a, b) => 
+    new Date(a.session_date).getTime() - new Date(b.session_date).getTime()
+  )
+
+  // Header
+  doc.setFillColor(59, 130, 246)
+  doc.rect(0, 0, 297, 35, 'F')
+  
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(20)
+  doc.setFont('helvetica', 'bold')
+  doc.text('KPRCAS Attendance Matrix Report', 148.5, 12, { align: 'center' })
+  
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Class: ${data.className} | Subject: ${data.subjectName} | Teacher: ${data.teacherName}`, 148.5, 22, { align: 'center' })
+  doc.text(`Period: ${data.dateRange.startDate} to ${data.dateRange.endDate}`, 148.5, 30, { align: 'center' })
+
+  // Build table headers
+  const headers = ['S.No', 'Student ID', 'Name', 'Email']
+  const dateHeaders = sortedSessions.map(session => {
+    const date = new Date(session.session_date).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short'
+    })
+    return `${date}\n${session.subject.subject_code || 'Sec'}`
+  })
+  headers.push(...dateHeaders)
+
+  // Build table data
+  const tableData = students.map((student, index) => {
+    const row = [
+      (index + 1).toString(),
+      student.student_id,
+      student.name,
+      student.email
+    ]
+
+    sortedSessions.forEach(session => {
+      const record = session.records.find(r => r.student_id === student.student_id)
+      if (record) {
+        row.push(record.status === 'present' ? 'P' : 'A')
+      } else {
+        row.push('-')
+      }
+    })
+
+    return row
+  })
+
+  // Calculate column widths dynamically
+  const fixedColWidth = [12, 25, 40, 50] // S.No, ID, Name, Email
+  const dateColWidth = sortedSessions.length > 0 
+    ? Math.min(20, Math.max(12, (297 - 127 - 20) / sortedSessions.length))
+    : 15
+
+  const columnStyles: { [key: number]: { cellWidth: number; halign?: string } } = {
+    0: { cellWidth: fixedColWidth[0], halign: 'center' },
+    1: { cellWidth: fixedColWidth[1] },
+    2: { cellWidth: fixedColWidth[2] },
+    3: { cellWidth: fixedColWidth[3] }
+  }
+
+  for (let i = 0; i < sortedSessions.length; i++) {
+    columnStyles[4 + i] = { cellWidth: dateColWidth, halign: 'center' }
+  }
+
+  autoTable(doc, {
+    startY: 42,
+    head: [headers],
+    body: tableData,
+    theme: 'grid',
+    headStyles: { 
+      fillColor: [59, 130, 246], 
+      fontSize: 7, 
+      fontStyle: 'bold',
+      halign: 'center',
+      valign: 'middle',
+      minCellHeight: 12
+    },
+    styles: { 
+      fontSize: 7, 
+      cellPadding: 1.5,
+      overflow: 'linebreak'
+    },
+    columnStyles: columnStyles,
+    didParseCell: (data) => {
+      // Color code P/A cells
+      if (data.section === 'body' && data.column.index >= 4) {
+        if (data.cell.raw === 'P') {
+          data.cell.styles.fillColor = [220, 252, 231] // Green for Present
+          data.cell.styles.textColor = [22, 101, 52]
+        } else if (data.cell.raw === 'A') {
+          data.cell.styles.fillColor = [254, 226, 226] // Red for Absent
+          data.cell.styles.textColor = [153, 27, 27]
+        }
+      }
+    },
+    didDrawPage: () => {
+      // Footer
+      const pageCount = (doc as any).internal.getNumberOfPages()
+      doc.setFontSize(8)
+      doc.setTextColor(100)
+      doc.text(
+        `Page ${(doc as any).internal.getCurrentPageInfo().pageNumber} of ${pageCount} | Generated: ${new Date().toLocaleString('en-IN')}`,
+        148.5,
+        doc.internal.pageSize.height - 8,
+        { align: 'center' }
+      )
+    }
+  })
+
+  // Save PDF
+  const fileName = `Attendance_Matrix_${data.className}_${data.dateRange.startDate}_to_${data.dateRange.endDate}.pdf`
+  doc.save(fileName)
+}
