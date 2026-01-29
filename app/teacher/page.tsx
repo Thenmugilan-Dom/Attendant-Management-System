@@ -1305,7 +1305,7 @@ export default function TeacherDashboard() {
 
         {/* OD Approvals Section */}
         {pendingODRequests.length > 0 && (
-          <Card data-od-section>
+          <Card>
             <CardHeader>
               <CardTitle className="text-lg sm:text-xl">OD Approval Requests</CardTitle>
               <CardDescription className="text-xs sm:text-sm">
@@ -1375,7 +1375,7 @@ export default function TeacherDashboard() {
         )}
 
         {/* OD Requests Management Section */}
-        <Card>
+        <Card data-od-section>
           <CardHeader>
             <CardTitle className="text-lg sm:text-xl">📋 OD Requests Management</CardTitle>
             <CardDescription className="text-xs sm:text-sm">

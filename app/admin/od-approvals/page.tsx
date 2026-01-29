@@ -184,6 +184,11 @@ export default function AdminODApprovalsPage() {
     }
   };
 
+  // Don't render anything until user is verified
+  if (!user) {
+    return null;
+  }
+
   const ODRequestCard = ({ request }: { request: ODRequest }) => {
     const student = request.students?.[0];
 
