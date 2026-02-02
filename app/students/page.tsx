@@ -15,7 +15,6 @@ import { Camera, CheckCircle, AlertCircle, QrCode, X, ZoomIn, ZoomOut } from "lu
 import { Html5Qrcode } from "html5-qrcode"
 import { ResponsiveWrapper } from "@/components/responsive-wrapper"
 import { InteractiveCard } from "@/components/interactive-card"
-import { useToast } from "@/components/toast"
 
 export default function StudentAttendancePage() {
   const [step, setStep] = useState<"scan" | "code" | "email" | "otp" | "success">("scan")
@@ -50,18 +49,12 @@ export default function StudentAttendancePage() {
   const [isMounted, setIsMounted] = useState(false)
   const [sessionExpired, setSessionExpired] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
-  const [lastError, setLastError] = useState<string>("")
   const [zoomLevel, setZoomLevel] = useState<number>(1)
   const [maxZoom, setMaxZoom] = useState<number>(1)
   const [zoomSupported, setZoomSupported] = useState<boolean>(false)
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const videoTrackRef = useRef<MediaStreamTrack | null>(null)
-  const expiredToastShownRef = useRef<boolean>(false)
-  const httpsToastShownRef = useRef<boolean>(false)
   const qrScannedRef = useRef<boolean>(false)
-  const successToastShownRef = useRef<boolean>(false)
-  const sessionVerifiedToastShownRef = useRef<boolean>(false)
-  const { showToast, ToastContainer } = useToast()
 
   // Track client-side mounting to prevent hydration errors
   useEffect(() => {
@@ -74,7 +67,6 @@ export default function StudentAttendancePage() {
       console.log("❌ No session data or expiresAt found for timer:", { sessionData: !!sessionData, expiresAt: sessionData?.expiresAt })
       setTimeRemaining(0)
       setSessionExpired(false)
-      expiredToastShownRef.current = false
       return
     }
 
@@ -83,9 +75,6 @@ export default function StudentAttendancePage() {
       expiresAt: sessionData.expiresAt,
       remainingSeconds: sessionData.remainingSeconds
     })
-
-    // Reset toast flag for new session
-    expiredToastShownRef.current = false
 
     // Calculate time remaining
     const calculateTimeRemaining = () => {
@@ -105,11 +94,9 @@ export default function StudentAttendancePage() {
       const remaining = calculateTimeRemaining()
       setTimeRemaining(remaining)
       
-      // Mark as expired when time runs out (show toast only once using ref)
-      if (remaining === 0 && !expiredToastShownRef.current) {
-        expiredToastShownRef.current = true
+      // Mark as expired when time runs out
+      if (remaining === 0) {
         setSessionExpired(true)
-        showToast("Session has expired!", "error")
         console.log("⏰ Session expired - attendance can no longer be marked")
         clearInterval(interval) // Stop the interval once expired
       }
@@ -149,10 +136,6 @@ export default function StudentAttendancePage() {
       // Check if we're in a secure context (HTTPS or localhost)
       if (!window.isSecureContext && window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.')) {
         setError("Camera requires HTTPS. Please use manual entry or open on Vercel deployment.")
-        if (!httpsToastShownRef.current) {
-          httpsToastShownRef.current = true
-          showToast("Camera requires HTTPS connection", "error")
-        }
         setScanning(false)
         return
       }
@@ -264,23 +247,13 @@ export default function StudentAttendancePage() {
               setSessionData(scannedData)
             }
             
-            // Show toast only once
-            if (!sessionVerifiedToastShownRef.current) {
-              sessionVerifiedToastShownRef.current = true
-              showToast("QR Code scanned successfully!", "success")
-            }
             setStep("email")
             stopScanning()
           } catch (e) {
             console.error("Invalid QR code format or fetch error:", e)
             // Reset so user can try scanning again
             qrScannedRef.current = false
-            const errorMsg = "Invalid QR code or connection error"
-            // Only show toast if it's a new error (prevent repeated toasts)
-            if (errorMsg !== lastError) {
-              showToast(errorMsg, "error")
-              setLastError(errorMsg)
-            }
+            setError("Invalid QR code or connection error")
           }
         },
         (errorMessage) => {
@@ -325,11 +298,6 @@ export default function StudentAttendancePage() {
       }
       
       setError(errorMsg)
-      // Only show toast if it's a new error (prevent repeated toasts)
-      if (errorMsg !== lastError) {
-        showToast(errorMsg, "error")
-        setLastError(errorMsg)
-      }
       setScanning(false)
     }
   }
@@ -342,10 +310,7 @@ export default function StudentAttendancePage() {
   const startScanning = () => {
     // Check HTTPS before attempting to start camera
     if (!window.isSecureContext && window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.')) {
-      if (!httpsToastShownRef.current) {
-        httpsToastShownRef.current = true
-        showToast("Camera requires HTTPS. Please use 'Enter Session Code Manually' button.", "error")
-      }
+      setError("Camera requires HTTPS. Please use 'Enter Session Code Manually' button.")
       return
     }
     
@@ -465,21 +430,11 @@ export default function StudentAttendancePage() {
       setTimeRemaining(data.session.remaining_seconds || 0)
       setSessionExpired(false)
       
-      // Show toast only once
-      if (!sessionVerifiedToastShownRef.current) {
-        sessionVerifiedToastShownRef.current = true
-        showToast("Session code verified!", "success")
-      }
       setMessage("Session verified successfully!")
       setStep("email")
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to verify session code"
       setError(errorMsg)
-      // Only show toast if it's a new error (prevent repeated toasts)
-      if (errorMsg !== lastError) {
-        showToast(errorMsg, "error")
-        setLastError(errorMsg)
-      }
     } finally {
       setLoading(false)
     }
@@ -526,8 +481,6 @@ export default function StudentAttendancePage() {
         // Check if this is a class mismatch error (always show this important error)
         if (response.status === 403 && data.blocked) {
           setError(data.error)
-          showToast(data.error, "error")
-          setLastError(data.error) // Update last error to prevent future repetition
           setLoading(false)
           return // Don't proceed to OTP step
         }
@@ -543,7 +496,6 @@ export default function StudentAttendancePage() {
       localStorage.setItem("attendance_otp", JSON.stringify(otpData))
       console.log("💾 OTP stored in localStorage:", otpData)
 
-      showToast("OTP sent to your email!", "success")
       setMessage("OTP sent to your email!")
       setStep("otp")
 
@@ -556,11 +508,6 @@ export default function StudentAttendancePage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to send OTP"
       setError(errorMsg)
-      // Only show toast if it's a new error (prevent repeated toasts)
-      if (errorMsg !== lastError) {
-        showToast(errorMsg, "error")
-        setLastError(errorMsg)
-      }
     } finally {
       setLoading(false)
     }
@@ -588,13 +535,7 @@ export default function StudentAttendancePage() {
 
     // Check if session has expired
     if (sessionExpired || timeRemaining <= 0) {
-      const errorMsg = "Session has expired. Please ask your teacher to start a new session."
-      setError(errorMsg)
-      // Only show toast if it's a new error (prevent repeated toasts)
-      if (errorMsg !== lastError) {
-        showToast("Session expired - cannot mark attendance", "error")
-        setLastError(errorMsg)
-      }
+      setError("Session has expired. Please ask your teacher to start a new session.")
       return
     }
 
@@ -676,21 +617,11 @@ export default function StudentAttendancePage() {
       }
 
       console.log("✅ Attendance marked successfully!")
-      // Show success toast only once
-      if (!successToastShownRef.current) {
-        successToastShownRef.current = true
-        showToast("Attendance marked successfully! 🎉", "success")
-      }
       setMessage("Attendance marked successfully!")
       setStep("success")
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to mark attendance"
       setError(errorMsg)
-      // Only show toast if it's a new error (prevent repeated toasts)
-      if (errorMsg !== lastError) {
-        showToast(errorMsg, "error")
-        setLastError(errorMsg)
-      }
     } finally {
       setLoading(false)
     }
@@ -711,16 +642,11 @@ export default function StudentAttendancePage() {
     setMessage("")
     setSessionExpired(false)
     setTimeRemaining(0)
-    setLastError("")
-    successToastShownRef.current = false
     qrScannedRef.current = false
-    sessionVerifiedToastShownRef.current = false
-    expiredToastShownRef.current = false
   }
 
   return (
     <ResponsiveWrapper>
-      <ToastContainer />
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4 safe-area-insets">
         <div className="w-full max-w-md space-y-4">
           {/* Header */}
