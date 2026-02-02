@@ -60,6 +60,7 @@ export default function StudentAttendancePage() {
   const httpsToastShownRef = useRef<boolean>(false)
   const qrScannedRef = useRef<boolean>(false)
   const successToastShownRef = useRef<boolean>(false)
+  const sessionVerifiedToastShownRef = useRef<boolean>(false)
   const { showToast, ToastContainer } = useToast()
 
   // Track client-side mounting to prevent hydration errors
@@ -263,7 +264,11 @@ export default function StudentAttendancePage() {
               setSessionData(scannedData)
             }
             
-            showToast("QR Code scanned successfully!", "success")
+            // Show toast only once
+            if (!sessionVerifiedToastShownRef.current) {
+              sessionVerifiedToastShownRef.current = true
+              showToast("QR Code scanned successfully!", "success")
+            }
             setStep("email")
             stopScanning()
           } catch (e) {
@@ -460,7 +465,11 @@ export default function StudentAttendancePage() {
       setTimeRemaining(data.session.remaining_seconds || 0)
       setSessionExpired(false)
       
-      showToast("Session code verified!", "success")
+      // Show toast only once
+      if (!sessionVerifiedToastShownRef.current) {
+        sessionVerifiedToastShownRef.current = true
+        showToast("Session code verified!", "success")
+      }
       setMessage("Session verified successfully!")
       setStep("email")
     } catch (err) {
@@ -705,6 +714,8 @@ export default function StudentAttendancePage() {
     setLastError("")
     successToastShownRef.current = false
     qrScannedRef.current = false
+    sessionVerifiedToastShownRef.current = false
+    expiredToastShownRef.current = false
   }
 
   return (
