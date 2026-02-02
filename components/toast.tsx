@@ -27,7 +27,7 @@ const colors = {
   warning: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20",
 }
 
-export function Toast({ message, type, duration = 5000, onClose }: ToastProps) {
+export function Toast({ message, type, duration = 3000, onClose }: ToastProps) {
   const [isVisible, setIsVisible] = useState(true)
   const Icon = icons[type]
 
@@ -76,8 +76,15 @@ export function useToast() {
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: ToastType }>>([])
 
   const showToast = useCallback((message: string, type: ToastType = "info") => {
-    const id = Math.random().toString(36).substr(2, 9)
-    setToasts((prev) => [...prev, { id, message, type }])
+    // Prevent duplicate toasts with same message
+    setToasts((prev) => {
+      // Check if a toast with the same message already exists
+      if (prev.some(t => t.message === message)) {
+        return prev
+      }
+      const id = Math.random().toString(36).substr(2, 9)
+      return [...prev, { id, message, type }]
+    })
   }, [])
 
   const removeToast = useCallback((id: string) => {
