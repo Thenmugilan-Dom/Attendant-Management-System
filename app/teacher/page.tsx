@@ -123,6 +123,9 @@ export default function TeacherDashboard() {
   // Session timer
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [showExtendDialog, setShowExtendDialog] = useState(false)
+  const [customExtendMinutes, setCustomExtendMinutes] = useState("")
+  const [audioAlertPlayed, setAudioAlertPlayed] = useState(false)
 
   // Fetch pending OD requests for this teacher
   const fetchPendingODRequests = async (teacherId: string) => {
@@ -288,6 +291,46 @@ export default function TeacherDashboard() {
       clearInterval(interval)
     }
   }, [activeSession?.id, activeSession?.expires_at])
+
+  // Audio alert when session is about to expire (30 seconds)
+  useEffect(() => {
+    if (timeRemaining === 30 && !audioAlertPlayed && activeSession && !sessionExpired) {
+      setAudioAlertPlayed(true)
+      // Play audio alert using Web Audio API
+      try {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+        const oscillator = audioContext.createOscillator()
+        const gainNode = audioContext.createGain()
+        
+        oscillator.connect(gainNode)
+        gainNode.connect(audioContext.destination)
+        
+        oscillator.frequency.value = 800
+        oscillator.type = 'sine'
+        gainNode.gain.value = 0.3
+        
+        oscillator.start()
+        
+        // Beep pattern: 3 short beeps
+        setTimeout(() => gainNode.gain.value = 0, 150)
+        setTimeout(() => gainNode.gain.value = 0.3, 250)
+        setTimeout(() => gainNode.gain.value = 0, 400)
+        setTimeout(() => gainNode.gain.value = 0.3, 500)
+        setTimeout(() => gainNode.gain.value = 0, 650)
+        setTimeout(() => {
+          oscillator.stop()
+          audioContext.close()
+        }, 700)
+      } catch (e) {
+        console.log("Audio alert not supported:", e)
+      }
+    }
+    
+    // Reset audio alert flag when session changes or time is extended
+    if (timeRemaining > 30) {
+      setAudioAlertPlayed(false)
+    }
+  }, [timeRemaining, audioAlertPlayed, activeSession, sessionExpired])
 
   // Auto-refresh live attendance when session is active
   useEffect(() => {
@@ -735,12 +778,16 @@ export default function TeacherDashboard() {
     }
   }
 
-  // Extend session time by 10 minutes
-  const handleExtendSession = async () => {
+  // Extend session time by custom minutes
+  const handleExtendSession = async (minutes: number = 10) => {
     if (!activeSession) return
 
     try {
-      const newExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+      // Add minutes to current expiry time (or from now if expired)
+      const currentExpiry = new Date(activeSession.expires_at).getTime()
+      const now = Date.now()
+      const baseTime = currentExpiry > now ? currentExpiry : now
+      const newExpiresAt = new Date(baseTime + minutes * 60 * 1000).toISOString()
       
       const { data, error } = await supabase
         .from("attendance_sessions")
@@ -761,7 +808,10 @@ export default function TeacherDashboard() {
 
       setActiveSession(data)
       setSessionExpired(false)
-      alert("✅ Session extended by 10 minutes!")
+      setAudioAlertPlayed(false) // Reset audio alert for new time
+      setShowExtendDialog(false)
+      setCustomExtendMinutes("")
+      alert(`✅ Session extended by ${minutes} minutes!`)
     } catch (error) {
       console.error("❌ Caught error extending session:", error)
     }
@@ -1182,28 +1232,48 @@ export default function TeacherDashboard() {
                     </div>
                   </div>
 
-                  {/* Session Timer - ALWAYS SHOW */}
+                  {/* Session Timer - Enhanced with Progress Bar */}
                   <div className={`mt-4 p-4 rounded-lg border-2 font-semibold ${
                     sessionExpired 
                       ? 'bg-red-100 border-red-500 text-red-800' 
+                      : timeRemaining <= 30
+                      ? 'bg-red-100 border-red-500 text-red-800 animate-pulse'
                       : timeRemaining <= 60 
                       ? 'bg-yellow-100 border-yellow-500 text-yellow-800' 
                       : 'bg-green-100 border-green-500 text-green-800'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-base">⏱️ Session Time Remaining</span>
-                      <span className="text-2xl tabular-nums font-mono">
+                      <span className="text-base">⏱️ Time Remaining</span>
+                      <span className={`text-3xl tabular-nums font-mono ${timeRemaining <= 30 && !sessionExpired ? 'animate-pulse' : ''}`}>
                         {sessionExpired ? "EXPIRED ❌" : `${formatTime(timeRemaining)}`}
                       </span>
                     </div>
-                    {timeRemaining > 0 && timeRemaining <= 60 && !sessionExpired && (
+                    
+                    {/* Progress Bar */}
+                    {!sessionExpired && timeRemaining > 0 && (
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                        <div 
+                          className={`h-2.5 rounded-full transition-all duration-1000 ${
+                            timeRemaining <= 30 ? 'bg-red-600' : timeRemaining <= 60 ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${Math.min(100, (timeRemaining / 600) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                    
+                    {timeRemaining > 0 && timeRemaining <= 30 && !sessionExpired && (
+                      <div className="text-sm mt-2 pt-2 border-t-2 border-red-400 flex items-center gap-2">
+                        🔊 ⚠️ Session expiring in {timeRemaining} seconds!
+                      </div>
+                    )}
+                    {timeRemaining > 30 && timeRemaining <= 60 && !sessionExpired && (
                       <div className="text-sm mt-2 pt-2 border-t-2 border-yellow-400">
-                        ⚠️ Hurry! Session expiring in {timeRemaining} seconds
+                        ⚠️ Less than a minute remaining
                       </div>
                     )}
                     {sessionExpired && (
                       <div className="text-sm mt-2 pt-2 border-t-2 border-red-400">
-                        Please end this session and start a new one
+                        Session expired - extend time or end session
                       </div>
                     )}
                   </div>
@@ -1246,10 +1316,18 @@ export default function TeacherDashboard() {
                     <Button
                       className="flex-1 text-sm sm:text-base"
                       variant="outline"
-                      onClick={handleExtendSession}
+                      onClick={() => handleExtendSession(10)}
                       disabled={loading}
                     >
                       ⏰ +10 min
+                    </Button>
+                    <Button
+                      className="flex-1 text-sm sm:text-base"
+                      variant="outline"
+                      onClick={() => setShowExtendDialog(true)}
+                      disabled={loading}
+                    >
+                      ⏰ More...
                     </Button>
                     <Button
                       className="flex-1 text-sm sm:text-base"
@@ -1260,6 +1338,84 @@ export default function TeacherDashboard() {
                       End Session
                     </Button>
                   </div>
+                  
+                  {/* Extend Time Dialog */}
+                  {showExtendDialog && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm font-medium mb-3">⏰ Extend Session Time</p>
+                      <div className="grid grid-cols-4 gap-2 mb-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleExtendSession(5)}
+                          className="text-xs"
+                        >
+                          +5 min
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleExtendSession(10)}
+                          className="text-xs"
+                        >
+                          +10 min
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleExtendSession(15)}
+                          className="text-xs"
+                        >
+                          +15 min
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleExtendSession(30)}
+                          className="text-xs"
+                        >
+                          +30 min
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder="Custom minutes"
+                          value={customExtendMinutes}
+                          onChange={(e) => setCustomExtendMinutes(e.target.value)}
+                          className="flex-1 text-sm"
+                          min="1"
+                          max="120"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const mins = parseInt(customExtendMinutes)
+                            if (mins > 0 && mins <= 120) {
+                              handleExtendSession(mins)
+                            } else {
+                              alert("Please enter a value between 1 and 120 minutes")
+                            }
+                          }}
+                          disabled={!customExtendMinutes}
+                          className="text-xs"
+                        >
+                          Add
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setShowExtendDialog(false)
+                            setCustomExtendMinutes("")
+                          }}
+                          className="text-xs"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </CardContent>

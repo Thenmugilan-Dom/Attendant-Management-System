@@ -110,6 +110,7 @@ export default function StudentAttendancePage() {
         setSessionExpired(true)
         showToast("Session has expired!", "error")
         console.log("⏰ Session expired - attendance can no longer be marked")
+        clearInterval(interval) // Stop the interval once expired
       }
     }, 1000)
 
@@ -117,7 +118,8 @@ export default function StudentAttendancePage() {
       clearInterval(interval)
       console.log("🔄 Timer cleanup completed")
     }
-  }, [sessionData?.sessionId, sessionData?.expiresAt, showToast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionData?.sessionId, sessionData?.expiresAt])
 
   // Cleanup on unmount
   useEffect(() => {
