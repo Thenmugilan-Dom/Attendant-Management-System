@@ -44,10 +44,17 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('✅ Classes fetched:', (data || []).length)
-    return NextResponse.json({
-      success: true,
-      data: data || [],
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        data: data || [],
+      },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=60'
+        }
+      }
+    )
   } catch (error) {
     console.error('❌ Classes GET API error:', error)
     // Return empty array on error instead of 500
@@ -62,9 +69,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { adminId, department, class_name, section, year } = body
+    const { adminId, department, class_name, section, year, class_email } = body
 
-    console.log('📝 Creating class:', { adminId, department, class_name, section, year })
+    console.log('📝 Creating class:', { adminId, department, class_name, section, year, class_email })
 
     if (!adminId) {
       return NextResponse.json(
@@ -86,6 +93,7 @@ export async function POST(request: NextRequest) {
       section: section?.trim() || null,
       year: year ? parseInt(year) : null,
       total_students: 0,
+      class_email: class_email?.trim() || null,
     }
 
     // Try to add department if provided
@@ -140,9 +148,9 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { adminId, department, classId, class_name, section, year } = body
+    const { adminId, department, classId, class_name, section, year, class_email } = body
 
-    console.log('✏️ Updating class:', { adminId, department, classId, class_name, section, year })
+    console.log('✏️ Updating class:', { adminId, department, classId, class_name, section, year, class_email })
 
     if (!adminId || !classId) {
       return NextResponse.json(
@@ -155,6 +163,7 @@ export async function PUT(request: NextRequest) {
     if (class_name) updateData.class_name = class_name.trim()
     if (section !== undefined) updateData.section = section ? section.trim() : null
     if (year !== undefined) updateData.year = year ? parseInt(year) : null
+    if (class_email !== undefined) updateData.class_email = class_email ? class_email.trim() : null
 
     // Update class using service role
     let query = supabaseAdmin

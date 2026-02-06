@@ -508,7 +508,7 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     // Check authentication immediately
-    const userData = localStorage.getItem("user")
+    const userData = sessionStorage.getItem("user")
     if (!userData) {
       router.replace("/login")
       return
@@ -546,7 +546,7 @@ export default function TeacherDashboard() {
           id,
           class_id,
           subject_id,
-          day_of_week,
+          day_order,
           start_time,
           end_time,
           auto_session_enabled,
@@ -576,7 +576,7 @@ export default function TeacherDashboard() {
           section: assignment.classes?.section || '',
           subject_name: assignment.subjects?.subject_name || '',
           subject_code: assignment.subjects?.subject_code || '',
-          day_of_week: assignment.day_of_week,
+          day_order: assignment.day_order,
           start_time: assignment.start_time,
           end_time: assignment.end_time,
           auto_session_enabled: assignment.auto_session_enabled,
@@ -584,13 +584,25 @@ export default function TeacherDashboard() {
         setAssignments(formattedAssignments)
         console.log("✅ Loaded assignments:", formattedAssignments)
 
-        // Fetch scheduled sessions for today
-        const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
-        const scheduledForToday = formattedAssignments.filter(
-          (a) => a.day_of_week === today && a.auto_session_enabled
-        )
-        setScheduledSessions(scheduledForToday)
-        console.log("📅 Scheduled sessions for today:", scheduledForToday)
+        // Fetch current day order and filter scheduled sessions
+        try {
+          const dayOrderResponse = await fetch('/api/admin/day-order?action=current&department=General')
+          const dayOrderData = await dayOrderResponse.json()
+          if (dayOrderData.success && !dayOrderData.isHoliday) {
+            const currentDayOrder = dayOrderData.dayOrder
+            const scheduledForToday = formattedAssignments.filter(
+              (a: any) => a.day_order === currentDayOrder && a.auto_session_enabled
+            )
+            setScheduledSessions(scheduledForToday)
+            console.log(`📅 Scheduled sessions for Day ${currentDayOrder}:`, scheduledForToday)
+          } else if (dayOrderData.isHoliday) {
+            console.log(`🎉 Today is a holiday: ${dayOrderData.holidayName}`)
+            setScheduledSessions([])
+          }
+        } catch (e) {
+          console.error('Error fetching day order:', e)
+          setScheduledSessions([])
+        }
       } else {
         // No assignments found
         console.log("ℹ️ No assignments found for teacher:", teacherId)

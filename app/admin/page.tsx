@@ -46,7 +46,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     // Check authentication immediately
-    const userData = localStorage.getItem("user")
+    const userData = sessionStorage.getItem("user")
     if (!userData) {
       router.replace("/login")
       return

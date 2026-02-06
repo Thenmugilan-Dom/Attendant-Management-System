@@ -32,18 +32,37 @@ export async function GET(request: NextRequest) {
 
     console.log('🕐 Running scheduled session check...')
 
-    // Get current time and day
+    // Get current time
     const now = new Date()
-    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' })
     const currentTime = now.toTimeString().slice(0, 5) // HH:MM format
     
     // Calculate time 5 minutes from now (when session should start)
     const fiveMinutesLater = new Date(now.getTime() + 5 * 60000)
     const targetTime = fiveMinutesLater.toTimeString().slice(0, 5)
 
-    console.log(`Current day: ${currentDay}, Current time: ${currentTime}, Target time: ${targetTime}`)
+    // Get current day order from the day_order API
+    let currentDayOrder = 1
+    try {
+      const dayOrderResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/admin/day-order?action=current&department=General`)
+      const dayOrderData = await dayOrderResponse.json()
+      if (dayOrderData.success && !dayOrderData.isHoliday) {
+        currentDayOrder = dayOrderData.dayOrder
+      } else if (dayOrderData.isHoliday) {
+        console.log(`Today is a holiday: ${dayOrderData.holidayName}`)
+        return NextResponse.json({
+          success: true,
+          message: `Today is a holiday: ${dayOrderData.holidayName}. No sessions to create.`,
+          checked_at: now.toISOString(),
+          is_holiday: true
+        })
+      }
+    } catch (e) {
+      console.error('Error fetching day order, using default:', e)
+    }
 
-    // Fetch all scheduled assignments for today that should trigger now
+    console.log(`Current day order: Day ${currentDayOrder}, Current time: ${currentTime}, Target time: ${targetTime}`)
+
+    // Fetch all scheduled assignments for today's day order that should trigger now
     const { data: scheduledAssignments, error: fetchError } = await supabase
       .from('teacher_subjects')
       .select(`
@@ -51,7 +70,7 @@ export async function GET(request: NextRequest) {
         teacher_id,
         class_id,
         subject_id,
-        day_of_week,
+        day_order,
         start_time,
         end_time,
         auto_session_enabled,
@@ -60,7 +79,7 @@ export async function GET(request: NextRequest) {
         subjects!subject_id(id, subject_code, subject_name)
       `)
       .eq('auto_session_enabled', true)
-      .eq('day_of_week', currentDay)
+      .eq('day_order', currentDayOrder)
       .not('start_time', 'is', null)
 
     if (fetchError) {
@@ -77,12 +96,12 @@ export async function GET(request: NextRequest) {
         success: true,
         message: 'No scheduled sessions to create',
         checked_at: now.toISOString(),
-        current_day: currentDay,
+        current_day_order: currentDayOrder,
         current_time: currentTime
       })
     }
 
-    console.log(`Found ${scheduledAssignments.length} scheduled assignment(s) for ${currentDay}`)
+    console.log(`Found ${scheduledAssignments.length} scheduled assignment(s) for Day ${currentDayOrder}`)
 
     // Filter assignments that should start within the next 5 minutes
     const assignmentsToTrigger = scheduledAssignments.filter(assignment => {

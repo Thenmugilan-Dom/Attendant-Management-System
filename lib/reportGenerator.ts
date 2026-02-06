@@ -1,6 +1,35 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+// Helper function to format dates in Excel-safe format (DD-MMM-YYYY as text)
+function formatDateForExcel(dateString: string): string {
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+    const day = date.getDate().toString().padStart(2, '0')
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const month = months[date.getMonth()]
+    const year = date.getFullYear()
+    return `${day}-${month}-${year}`
+  } catch {
+    return dateString
+  }
+}
+
+// Helper function to format short date (DD-MMM) for column headers
+function formatShortDate(dateString: string): string {
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+    const day = date.getDate().toString().padStart(2, '0')
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const month = months[date.getMonth()]
+    return `${day}-${month}`
+  } catch {
+    return dateString
+  }
+}
+
 interface AttendanceRecord {
   students: {
     student_id: string
@@ -77,11 +106,7 @@ export function generatePDF(
   // Session details table
   const sessionDetails = [
     ['Session Code:', session.session_code],
-    ['Date:', new Date(session.session_date).toLocaleDateString('en-IN', { 
-      day: '2-digit', 
-      month: 'short', 
-      year: 'numeric' 
-    })],
+    ['Date:', formatDateForExcel(session.session_date)],
     ['Subject:', `${session.subject.subject_name} (${session.subject.subject_code})`],
     ['Credits:', session.subject.credits?.toString() || 'N/A'],
     ['Semester:', session.subject.semester?.toString() || 'N/A'],
@@ -214,7 +239,7 @@ export function generateCSV(
   let csv = 'KPRCAS Attendance Report\n\n'
   csv += 'Session Information\n'
   csv += `Session Code,${session.session_code}\n`
-  csv += `Date,${new Date(session.session_date).toLocaleDateString('en-IN')}\n`
+  csv += `Date,"${formatDateForExcel(session.session_date)}"\n`
   csv += `Subject,"${session.subject.subject_name} (${session.subject.subject_code})"\n`
   csv += `Credits,${session.subject.credits || 'N/A'}\n`
   csv += `Semester,${session.subject.semester || 'N/A'}\n`
@@ -350,10 +375,7 @@ export function generateComprehensivePDF(data: ComprehensiveReportData, teacherN
   // Build table headers
   const headers = ['S.No', 'Student ID', 'Name', 'Email']
   const dateHeaders = sortedSessions.map(session => {
-    const date = new Date(session.session_date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short'
-    })
+    const date = formatShortDate(session.session_date)
     return `${date}\n${session.subject.subject_code || session.subject.subject_name.substring(0, 4)}`
   })
   headers.push(...dateHeaders)
@@ -516,12 +538,8 @@ export function generateComprehensiveCSV(data: ComprehensiveReportData, teacherN
   // First header row with dates
   csv += ',,,,'  // Empty cells for S.No, Student ID, Name, Email
   sortedSessions.forEach(session => {
-    const date = new Date(session.session_date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    })
-    csv += `${date},`
+    const date = formatDateForExcel(session.session_date)
+    csv += `"${date}",`
   })
   csv += '\n'
 
@@ -720,7 +738,7 @@ export function generateDateWisePDF(data: DateWiseReportData) {
 
   const sessionTableData = data.sessions.map((session, index) => [
     (index + 1).toString(),
-    new Date(session.session_date).toLocaleDateString('en-IN'),
+    formatDateForExcel(session.session_date),
     session.session_code,
     `${session.class.class_name} ${session.class.section}`,
     session.subject.subject_name,
@@ -827,7 +845,7 @@ export function generateDateWiseCSV(data: DateWiseReportData) {
 
   data.sessions.forEach((session, index) => {
     csv += `${index + 1},`
-    csv += `${new Date(session.session_date).toLocaleDateString('en-IN')},`
+    csv += `"${formatDateForExcel(session.session_date)}",`
     csv += `${session.session_code},`
     csv += `"${session.class.class_name} ${session.class.section}",`
     csv += `"${session.subject.subject_name}",`
@@ -858,7 +876,7 @@ export function generateDateWiseCSV(data: DateWiseReportData) {
 
   data.sessions.forEach((session, sessionIndex) => {
     csv += `Session ${sessionIndex + 1}: ${session.session_code}\n`
-    csv += `Date: ${new Date(session.session_date).toLocaleDateString('en-IN')}\n`
+    csv += `Date: ${formatDateForExcel(session.session_date)}\n`
     csv += `Class: ${session.class.class_name} ${session.class.section}\n`
     csv += `Subject: ${session.subject.subject_name}\n`
     csv += `Teacher: ${session.teacher.name}\n`
@@ -960,12 +978,8 @@ export function generateMatrixCSV(data: MatrixReportData) {
   // First header row with dates
   csv += ',,,,'  // Empty cells for S.No, Student ID, Name, Email
   sortedSessions.forEach(session => {
-    const date = new Date(session.session_date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    })
-    csv += `${date},`
+    const date = formatDateForExcel(session.session_date)
+    csv += `"${date}",`
   })
   csv += '\n'
 
@@ -1077,10 +1091,7 @@ export function generateMatrixPDF(data: MatrixReportData) {
   // Build table headers
   const headers = ['S.No', 'Student ID', 'Name', 'Email']
   const dateHeaders = sortedSessions.map(session => {
-    const date = new Date(session.session_date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short'
-    })
+    const date = formatShortDate(session.session_date)
     return `${date}\n${session.subject.subject_code || 'Sec'}`
   })
   headers.push(...dateHeaders)

@@ -46,7 +46,12 @@ export async function GET(req: NextRequest) {
     }
 
     console.log('✅ Fetched subjects:', data?.length);
-    return NextResponse.json(data || [], { status: 200 });
+    return NextResponse.json(data || [], { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'private, max-age=30, stale-while-revalidate=60'
+      }
+    });
   } catch (error) {
     console.error('❌ Unexpected error:', error);
     // Return empty array on error to prevent frontend crashes

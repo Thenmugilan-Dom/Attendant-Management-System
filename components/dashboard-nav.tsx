@@ -14,8 +14,8 @@ export function DashboardNav({ userName, userEmail, userRole }: DashboardNavProp
   const router = useRouter()
 
   const handleLogout = () => {
-    localStorage.removeItem("user")
-    localStorage.removeItem("token")
+    sessionStorage.removeItem("user")
+    sessionStorage.removeItem("token")
     router.push("/login")
   }
 

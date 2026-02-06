@@ -41,7 +41,7 @@ export default function ReportsPage() {
   const [viewType, setViewType] = useState<"summary" | "student" | "session">("summary")
 
   useEffect(() => {
-    const userData = localStorage.getItem("user")
+    const userData = sessionStorage.getItem("user")
     if (!userData) return router.replace("/login")
     const parsed = JSON.parse(userData)
     if (parsed.role !== "admin") return router.replace("/login")

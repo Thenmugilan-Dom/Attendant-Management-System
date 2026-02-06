@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, BookOpen, GraduationCap, Link2, Plus, Pencil, Trash2, LogOut, LayoutDashboard, Eye, Upload, Download } from "lucide-react"
+import { Users, BookOpen, GraduationCap, Link2, Plus, Pencil, Trash2, LogOut, LayoutDashboard, Eye, Upload, Download, Calendar, RefreshCw, Clock } from "lucide-react"
 
 interface User {
   id: string
@@ -115,7 +115,7 @@ interface Student {
 export default function AdminManagementPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
-  const [activeTab, setActiveTab] = useState<"classes" | "subjects" | "teachers" | "assignments" | "students">("classes")
+  const [activeTab, setActiveTab] = useState<"classes" | "subjects" | "teachers" | "assignments" | "students" | "dayorder">("classes")
   
   // Data states
   const [classes, setClasses] = useState<Class[]>([])
@@ -123,6 +123,29 @@ export default function AdminManagementPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [students, setStudents] = useState<Student[]>([])
+  
+  // Day Order states
+  const [currentDayOrder, setCurrentDayOrder] = useState<number | null>(null)
+  const [dayOrderConfig, setDayOrderConfig] = useState<{totalDays: number; department: string} | null>(null)
+  const [dayOrderHistory, setDayOrderHistory] = useState<Array<{
+    id: string
+    day_order: number
+    effective_date: string
+    is_holiday: boolean
+    holiday_name: string | null
+    reason: string | null
+    users?: { name: string; email: string }
+  }>>([])
+  const [upcomingDayOrders, setUpcomingDayOrders] = useState<Array<{
+    date: string
+    dayOrder: number
+    isHoliday: boolean
+    holidayName: string | null
+    isExplicit: boolean
+  }>>([])
+  const [dayOrderLoading, setDayOrderLoading] = useState(false)
+  const [showDayOrderDialog, setShowDayOrderDialog] = useState(false)
+  const [dayOrderDialogMode, setDayOrderDialogMode] = useState<"set" | "holiday" | "config">("set")
   
   // Excel import states
   const [showImportDialog, setShowImportDialog] = useState(false)
@@ -146,7 +169,7 @@ export default function AdminManagementPage() {
 
   useEffect(() => {
     // Check authentication immediately
-    const userData = localStorage.getItem("user")
+    const userData = sessionStorage.getItem("user")
     if (!userData) {
       router.replace("/login")
       return
@@ -166,31 +189,90 @@ export default function AdminManagementPage() {
 
   const fetchAllData = async () => {
     setFetching(true)
-    // Only fetch data for the current active tab to improve performance
-    // Other tabs will load when user switches to them
-    await fetchClasses()
+    // Pre-fetch commonly used data in parallel for better UX
+    // Classes, teachers, and assignments are needed for most operations
+    const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
+    const department = userObj.department || "General"
+    
+    try {
+      await Promise.all([
+        fetchClassesOptimized(userObj.id, department),
+        fetchTeachersOptimized(),
+        fetchAssignmentsOptimized(),
+        fetchSubjectsOptimized(userObj.id, department)
+      ])
+    } catch (error) {
+      console.error("Error in parallel fetch:", error)
+    }
     setFetching(false)
   }
 
-  // Fetch data when switching tabs
+  // Optimized fetch functions that don't depend on user state
+  const fetchClassesOptimized = async (adminId: string, department: string) => {
+    try {
+      const response = await fetch(`/api/admin/classes?adminId=${adminId}&department=${department}`)
+      const data = await response.json()
+      if (data?.success && Array.isArray(data.data)) {
+        setClasses(data.data)
+      } else if (Array.isArray(data)) {
+        setClasses(data)
+      }
+    } catch (error) {
+      console.error("Error fetching classes:", error)
+    }
+  }
+
+  const fetchTeachersOptimized = async () => {
+    try {
+      const response = await fetch("/api/admin/users?type=teacher")
+      const data = await response.json()
+      if (data.success) {
+        setTeachers(data.users || [])
+      }
+    } catch (error) {
+      console.error("Error fetching teachers:", error)
+    }
+  }
+
+  const fetchAssignmentsOptimized = async () => {
+    try {
+      const response = await fetch("/api/admin/assignments")
+      const data = await response.json()
+      if (data.success) {
+        setAssignments(data.assignments || [])
+      }
+    } catch (error) {
+      console.error("Error fetching assignments:", error)
+    }
+  }
+
+  const fetchSubjectsOptimized = async (adminId: string, department: string) => {
+    try {
+      const response = await fetch(`/api/admin/subjects?adminId=${adminId}&department=${department}`)
+      const data = await response.json()
+      if (Array.isArray(data)) {
+        setSubjects(data)
+      }
+    } catch (error) {
+      console.error("Error fetching subjects:", error)
+    }
+  }
+
+  // Fetch data when switching tabs (only for tabs not pre-loaded)
   useEffect(() => {
-    if (activeTab === 'classes' && classes.length === 0) {
-      fetchClasses()
-    } else if (activeTab === 'subjects' && subjects.length === 0) {
-      fetchSubjects()
-    } else if (activeTab === 'teachers' && teachers.length === 0) {
-      fetchTeachers()
-    } else if (activeTab === 'assignments' && assignments.length === 0) {
-      fetchAssignments()
-    } else if (activeTab === 'students' && students.length === 0) {
+    // Classes, teachers, subjects, and assignments are pre-loaded
+    // Only fetch students and dayorder on demand
+    if (activeTab === 'students' && students.length === 0) {
       fetchStudents()
+    } else if (activeTab === 'dayorder' && currentDayOrder === null) {
+      fetchDayOrderData()
     }
   }, [activeTab])
 
   const fetchClasses = async () => {
     try {
       if (!user?.id) return
-      const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+      const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
       const department = userObj.department || "General"
       const response = await fetch(`/api/admin/classes?adminId=${user.id}&department=${department}`)
       const data = await response.json()
@@ -212,7 +294,7 @@ export default function AdminManagementPage() {
   const fetchSubjects = async () => {
     try {
       if (!user?.id) return
-      const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+      const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
       const department = userObj.department || "General"
       const response = await fetch(`/api/admin/subjects?adminId=${user.id}&department=${department}`)
       const data = await response.json()
@@ -265,9 +347,195 @@ export default function AdminManagementPage() {
     }
   }
 
+  // Day Order functions
+  const fetchDayOrderData = async () => {
+    setDayOrderLoading(true)
+    try {
+      const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
+      const department = userObj.department || "General"
+      
+      // Fetch current day order
+      const currentResponse = await fetch(`/api/admin/day-order?department=${department}&action=current`)
+      const currentData = await currentResponse.json()
+      if (currentData.success) {
+        setCurrentDayOrder(currentData.dayOrder)
+        if (currentData.config) {
+          setDayOrderConfig(currentData.config)
+        }
+      }
+      
+      // Fetch config
+      const configResponse = await fetch(`/api/admin/day-order?department=${department}&action=config`)
+      const configData = await configResponse.json()
+      if (configData.success) {
+        setDayOrderConfig(configData.config)
+      }
+      
+      // Fetch history
+      const historyResponse = await fetch(`/api/admin/day-order?department=${department}&action=history`)
+      const historyData = await historyResponse.json()
+      if (historyData.success) {
+        setDayOrderHistory(historyData.history || [])
+      }
+      
+      // Fetch upcoming
+      const upcomingResponse = await fetch(`/api/admin/day-order?department=${department}&action=upcoming`)
+      const upcomingData = await upcomingResponse.json()
+      if (upcomingData.success) {
+        setUpcomingDayOrders(upcomingData.upcoming || [])
+      }
+    } catch (error) {
+      console.error("Error fetching day order data:", error)
+    } finally {
+      setDayOrderLoading(false)
+    }
+  }
+
+  const handleSetDayOrder = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+    
+    const formData = new FormData(e.currentTarget)
+    const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
+    const department = userObj.department || "General"
+    
+    try {
+      const response = await fetch("/api/admin/day-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_day_order",
+          department,
+          adminId: user?.id,
+          dayOrder: parseInt(formData.get("dayOrder") as string),
+          effectiveDate: formData.get("effectiveDate"),
+          reason: formData.get("reason") || null,
+          isHoliday: false
+        })
+      })
+      
+      const result = await response.json()
+      if (result.success) {
+        alert(result.message)
+        await fetchDayOrderData()
+        setShowDayOrderDialog(false)
+      } else {
+        alert(result.error || "Failed to set day order")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Failed to set day order")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSetHoliday = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+    
+    const formData = new FormData(e.currentTarget)
+    const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
+    const department = userObj.department || "General"
+    
+    try {
+      const response = await fetch("/api/admin/day-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_day_order",
+          department,
+          adminId: user?.id,
+          dayOrder: null,
+          effectiveDate: formData.get("effectiveDate"),
+          reason: formData.get("reason") || null,
+          isHoliday: true,
+          holidayName: formData.get("holidayName")
+        })
+      })
+      
+      const result = await response.json()
+      if (result.success) {
+        alert(result.message)
+        await fetchDayOrderData()
+        setShowDayOrderDialog(false)
+      } else {
+        alert(result.error || "Failed to set holiday")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Failed to set holiday")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdateConfig = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+    
+    const formData = new FormData(e.currentTarget)
+    const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
+    const department = userObj.department || "General"
+    
+    try {
+      const response = await fetch("/api/admin/day-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_config",
+          department,
+          adminId: user?.id,
+          totalDays: parseInt(formData.get("totalDays") as string),
+          currentDayOrder: parseInt(formData.get("currentDayOrder") as string)
+        })
+      })
+      
+      const result = await response.json()
+      if (result.success) {
+        alert(result.message)
+        await fetchDayOrderData()
+        setShowDayOrderDialog(false)
+      } else {
+        alert(result.error || "Failed to update configuration")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Failed to update configuration")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteDayOrderSetting = async (settingId: string) => {
+    if (!confirm("Are you sure you want to delete this day order setting?")) return
+    
+    const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
+    const department = userObj.department || "General"
+    
+    try {
+      const response = await fetch("/api/admin/day-order", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settingId, department })
+      })
+      
+      const result = await response.json()
+      if (result.success) {
+        alert(result.message)
+        await fetchDayOrderData()
+      } else {
+        alert(result.error || "Failed to delete setting")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Failed to delete setting")
+    }
+  }
+
   const handleLogout = () => {
-    localStorage.removeItem("user")
-    localStorage.removeItem("token")
+    sessionStorage.removeItem("user")
+    sessionStorage.removeItem("token")
     router.push("/login")
   }
 
@@ -279,7 +547,7 @@ export default function AdminManagementPage() {
     setSelectedTeacher("")
     setSelectedSubject("")
     setSelectedClass("")
-    setSelectedDayOfWeek("")
+    setSelectedDayOrder("")
     setSelectedStartTime("")
     setSelectedEndTime("")
     setAutoSessionEnabled(false)
@@ -300,7 +568,7 @@ export default function AdminManagementPage() {
     setLoading(false)
     // Reset schedule fields
     setAutoSessionEnabled(false)
-    setSelectedDayOfWeek("")
+    setSelectedDayOrder("")
     setSelectedStartTime("")
     setSelectedEndTime("")
   }
@@ -311,7 +579,7 @@ export default function AdminManagementPage() {
     setLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+    const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
     const department = userObj.department || "General"
     
     const data = {
@@ -321,6 +589,7 @@ export default function AdminManagementPage() {
       section: formData.get("section") || null,
       year: formData.get("year") ? parseInt(formData.get("year") as string) : null,
       department: department,
+      class_email: formData.get("class_email") || null,
     }
 
     try {
@@ -354,7 +623,7 @@ export default function AdminManagementPage() {
     if (!confirm("Are you sure you want to delete this class?")) return
 
     try {
-      const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+      const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
       const department = userObj.department || "General"
       
       const response = await fetch(`/api/admin/classes`, {
@@ -386,7 +655,7 @@ export default function AdminManagementPage() {
     setLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+    const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
     const department = userObj.department || "General"
     
     const data = {
@@ -430,7 +699,7 @@ export default function AdminManagementPage() {
     if (!confirm("Are you sure you want to delete this subject?")) return
 
     try {
-      const userObj = JSON.parse(localStorage.getItem("user") || "{}")
+      const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
       const department = userObj.department || "General"
       
       const response = await fetch("/api/admin/subjects", {
@@ -541,7 +810,7 @@ export default function AdminManagementPage() {
   const [selectedTeacher, setSelectedTeacher] = useState("")
   const [selectedSubject, setSelectedSubject] = useState("")
   const [selectedClass, setSelectedClass] = useState("")
-  const [selectedDayOfWeek, setSelectedDayOfWeek] = useState("")
+  const [selectedDayOrder, setSelectedDayOrder] = useState("")
   const [selectedStartTime, setSelectedStartTime] = useState("")
   const [selectedEndTime, setSelectedEndTime] = useState("")
   const [autoSessionEnabled, setAutoSessionEnabled] = useState(false)
@@ -555,7 +824,7 @@ export default function AdminManagementPage() {
       teacher_id: selectedTeacher,
       subject_id: selectedSubject,
       class_id: selectedClass,
-      day_of_week: selectedDayOfWeek || null,
+      day_order: selectedDayOrder ? parseInt(selectedDayOrder) : null,
       start_time: selectedStartTime || null,
       end_time: selectedEndTime || null,
       auto_session_enabled: autoSessionEnabled,
@@ -586,7 +855,7 @@ export default function AdminManagementPage() {
         setSelectedTeacher("")
         setSelectedSubject("")
         setSelectedClass("")
-        setSelectedDayOfWeek("")
+        setSelectedDayOrder("")
         setSelectedStartTime("")
         setSelectedEndTime("")
         setAutoSessionEnabled(false)
@@ -831,6 +1100,20 @@ export default function AdminManagementPage() {
           >
             <GraduationCap className="h-4 w-4 mr-2" />
             Students
+          </Button>
+          <Button
+            variant={activeTab === "dayorder" ? "default" : "outline"}
+            onClick={() => setActiveTab("dayorder")}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Day Order
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin/timetable")}
+          >
+            <Clock className="h-4 w-4 mr-2" />
+            Timetable
           </Button>
         </div>
 
@@ -1208,7 +1491,349 @@ export default function AdminManagementPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Day Order Tab */}
+        {activeTab === "dayorder" && (
+          <div className="space-y-6">
+            {/* Current Day Order Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Today&apos;s Day Order
+                    </CardTitle>
+                    <CardDescription>Current timetable day order for today</CardDescription>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={fetchDayOrderData}
+                    disabled={dayOrderLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${dayOrderLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {dayOrderLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="text-center">
+                      <div className="text-6xl font-bold text-primary mb-2">
+                        Day {currentDayOrder || 1}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date().toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                      {dayOrderConfig && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Cycle: Day 1 to Day {dayOrderConfig.totalDays}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => { setDayOrderDialogMode("set"); setShowDayOrderDialog(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Set Day Order
+              </Button>
+              <Button variant="outline" onClick={() => { setDayOrderDialogMode("holiday"); setShowDayOrderDialog(true); }}>
+                <Calendar className="h-4 w-4 mr-2" />
+                Mark Holiday
+              </Button>
+              <Button variant="outline" onClick={() => { setDayOrderDialogMode("config"); setShowDayOrderDialog(true); }}>
+                Configure Cycle
+              </Button>
+            </div>
+
+            {/* Upcoming Schedule */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Upcoming Schedule (Next 7 Days)</CardTitle>
+                <CardDescription>Day order forecast for the upcoming week</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                  {upcomingDayOrders.map((day, index) => {
+                    const date = new Date(day.date)
+                    const isToday = index === 0
+                    return (
+                      <div 
+                        key={day.date}
+                        className={`p-3 rounded-lg border text-center ${
+                          isToday 
+                            ? 'bg-primary text-primary-foreground border-primary' 
+                            : day.isHoliday 
+                              ? 'bg-red-50 border-red-200' 
+                              : day.isExplicit 
+                                ? 'bg-blue-50 border-blue-200' 
+                                : 'bg-muted/50'
+                        }`}
+                      >
+                        <p className={`text-xs font-medium ${isToday ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
+                          {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                        </p>
+                        <p className={`text-sm ${isToday ? 'text-primary-foreground' : ''}`}>
+                          {date.getDate()}/{date.getMonth() + 1}
+                        </p>
+                        {day.isHoliday ? (
+                          <p className="text-lg font-bold text-red-600">Holiday</p>
+                        ) : (
+                          <p className={`text-lg font-bold ${isToday ? 'text-primary-foreground' : 'text-primary'}`}>
+                            Day {day.dayOrder}
+                          </p>
+                        )}
+                        {day.holidayName && (
+                          <p className="text-xs text-red-600 truncate">{day.holidayName}</p>
+                        )}
+                        {day.isExplicit && !day.isHoliday && (
+                          <p className="text-xs text-blue-600">Modified</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* History */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Day Order History</CardTitle>
+                <CardDescription>Recent changes to day order settings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Day Order</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Changed By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dayOrderHistory.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          No day order changes recorded yet. Use &quot;Set Day Order&quot; to make changes.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      dayOrderHistory.map((setting) => (
+                        <TableRow key={setting.id}>
+                          <TableCell className="font-medium">
+                            {new Date(setting.effective_date).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {setting.is_holiday ? (
+                              <span className="text-red-600 font-medium">Holiday</span>
+                            ) : (
+                              <span className="text-primary font-bold">Day {setting.day_order}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              setting.is_holiday 
+                                ? "bg-red-100 text-red-800" 
+                                : "bg-blue-100 text-blue-800"
+                            }`}>
+                              {setting.is_holiday ? setting.holiday_name || 'Holiday' : 'Day Change'}
+                            </span>
+                          </TableCell>
+                          <TableCell>{setting.reason || "-"}</TableCell>
+                          <TableCell>{setting.users?.name || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteDayOrderSetting(setting.id)}
+                              title="Delete Setting"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
+
+      {/* Day Order Dialog */}
+      <Dialog open={showDayOrderDialog} onOpenChange={setShowDayOrderDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {dayOrderDialogMode === "set" && "Set Day Order"}
+              {dayOrderDialogMode === "holiday" && "Mark Holiday"}
+              {dayOrderDialogMode === "config" && "Configure Day Order Cycle"}
+            </DialogTitle>
+            <DialogDescription>
+              {dayOrderDialogMode === "set" && "Change the day order for a specific date. The schedule will continue from this day."}
+              {dayOrderDialogMode === "holiday" && "Mark a date as a holiday. No classes will be scheduled."}
+              {dayOrderDialogMode === "config" && "Configure the total number of days in your timetable cycle."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {dayOrderDialogMode === "set" && (
+            <form onSubmit={handleSetDayOrder} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="effectiveDate">Date</Label>
+                <Input
+                  id="effectiveDate"
+                  name="effectiveDate"
+                  type="date"
+                  required
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dayOrder">Day Order</Label>
+                <Select name="dayOrder" required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select day order" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: dayOrderConfig?.totalDays || 6 }, (_, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>
+                        Day {i + 1}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reason">Reason (Optional)</Label>
+                <Input
+                  id="reason"
+                  name="reason"
+                  placeholder="e.g., Compensatory class, schedule adjustment"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowDayOrderDialog(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Saving..." : "Save"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+
+          {dayOrderDialogMode === "holiday" && (
+            <form onSubmit={handleSetHoliday} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="effectiveDate">Date</Label>
+                <Input
+                  id="effectiveDate"
+                  name="effectiveDate"
+                  type="date"
+                  required
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="holidayName">Holiday Name</Label>
+                <Input
+                  id="holidayName"
+                  name="holidayName"
+                  required
+                  placeholder="e.g., Diwali, Christmas, Local Festival"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reason">Notes (Optional)</Label>
+                <Input
+                  id="reason"
+                  name="reason"
+                  placeholder="Additional notes about the holiday"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowDayOrderDialog(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Saving..." : "Mark Holiday"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+
+          {dayOrderDialogMode === "config" && (
+            <form onSubmit={handleUpdateConfig} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="totalDays">Total Days in Cycle</Label>
+                <Select name="totalDays" defaultValue={String(dayOrderConfig?.totalDays || 6)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select total days" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>
+                        {i + 1} Days
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Number of unique days in your timetable (e.g., 6 for Day 1 to Day 6)
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currentDayOrder">Current Day Order</Label>
+                <Select name="currentDayOrder" defaultValue={String(currentDayOrder || 1)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select current day" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: dayOrderConfig?.totalDays || 6 }, (_, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>
+                        Day {i + 1}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Reset the current day order to this value starting from today
+                </p>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowDayOrderDialog(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Saving..." : "Update Configuration"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog for Add/Edit */}
       <Dialog open={showDialog} onOpenChange={closeDialog}>
@@ -1382,7 +2007,7 @@ export default function AdminManagementPage() {
                         id="department"
                         name="department"
                         placeholder="e.g., Computer Science, IT, Master of Science"
-                        defaultValue={(JSON.parse(localStorage.getItem("user") || "{}")).department || "Computer Science"}
+                        defaultValue={(JSON.parse(sessionStorage.getItem("user") || "{}")).department || "Computer Science"}
                         required
                       />
                     </div>
@@ -1613,21 +2238,22 @@ export default function AdminManagementPage() {
                           <div className="space-y-3 pl-6 border-l-2 border-blue-300">
                             <p className="text-xs text-blue-600 font-medium">📌 Schedule Configuration</p>
                             <div>
-                              <Label htmlFor="day_of_week">Day of Week</Label>
-                              <Select value={selectedDayOfWeek} onValueChange={setSelectedDayOfWeek}>
+                              <Label htmlFor="day_order">Day Order</Label>
+                              <Select value={selectedDayOrder} onValueChange={setSelectedDayOrder}>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select day" />
+                                  <SelectValue placeholder="Select day order" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Monday">Monday</SelectItem>
-                                  <SelectItem value="Tuesday">Tuesday</SelectItem>
-                                  <SelectItem value="Wednesday">Wednesday</SelectItem>
-                                  <SelectItem value="Thursday">Thursday</SelectItem>
-                                  <SelectItem value="Friday">Friday</SelectItem>
-                                  <SelectItem value="Saturday">Saturday</SelectItem>
-                                  <SelectItem value="Sunday">Sunday</SelectItem>
+                                  {Array.from({ length: dayOrderConfig?.totalDays || 6 }, (_, i) => (
+                                    <SelectItem key={i + 1} value={String(i + 1)}>
+                                      Day {i + 1}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Select which day order this class should run on
+                              </p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">

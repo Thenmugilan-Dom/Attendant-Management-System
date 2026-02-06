@@ -39,7 +39,7 @@ export default function AdminODApprovalsPage() {
 
   useEffect(() => {
     // Check authentication
-    const userData = localStorage.getItem('user');
+    const userData = sessionStorage.getItem('user');
     if (!userData) {
       router.replace('/login');
       return;

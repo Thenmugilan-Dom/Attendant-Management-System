@@ -54,7 +54,7 @@ export default function TeacherReports() {
   const [odLoading, setOdLoading] = useState(false)
 
   useEffect(() => {
-    const teacherData = localStorage.getItem("user")
+    const teacherData = sessionStorage.getItem("user")
     if (!teacherData) {
       router.push("/login")
       return

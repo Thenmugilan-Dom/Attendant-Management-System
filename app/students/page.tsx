@@ -1198,7 +1198,7 @@ export default function StudentAttendancePage() {
             <Button 
               onClick={() => {
                 // Check if user is logged in
-                const user = localStorage.getItem('user');
+                const user = sessionStorage.getItem('user');
                 if (!user) {
                   window.location.href = '/login';
                 } else {

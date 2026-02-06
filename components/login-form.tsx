@@ -69,9 +69,9 @@ export function LoginForm({
         throw new Error(data.error || "Invalid credentials")
       }
 
-      // Store user data and token in localStorage
-      localStorage.setItem("user", JSON.stringify(data.user))
-      localStorage.setItem("token", data.token)
+      // Store user data and token in sessionStorage (per-tab isolation)
+      sessionStorage.setItem("user", JSON.stringify(data.user))
+      sessionStorage.setItem("token", data.token)
 
       setMessage("Login successful! Redirecting...")
 

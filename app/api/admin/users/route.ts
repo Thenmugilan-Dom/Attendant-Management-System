@@ -258,10 +258,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      users,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        users,
+      },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=60'
+        }
+      }
+    )
   } catch (error) {
     console.error('Error in get users:', error)
     return NextResponse.json(

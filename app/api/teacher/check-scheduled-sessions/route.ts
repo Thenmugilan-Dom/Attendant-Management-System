@@ -3,11 +3,12 @@ import { supabase } from '@/lib/supabase'
 
 /**
  * GET /api/teacher/check-scheduled-sessions
- * Allows teachers to manually check and display their scheduled sessions for today
+ * Allows teachers to manually check and display their scheduled sessions for today's day order
  */
 export async function GET(request: NextRequest) {
   try {
     const teacherId = request.nextUrl.searchParams.get('teacher_id')
+    const department = request.nextUrl.searchParams.get('department') || 'General'
 
     if (!teacherId) {
       return NextResponse.json(
@@ -16,10 +17,39 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get current day
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
+    // Get current day order from the day_order API
+    let currentDayOrder = 1
+    let isHoliday = false
+    let holidayName = ''
+    
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const dayOrderResponse = await fetch(`${baseUrl}/api/admin/day-order?action=current&department=${department}`)
+      const dayOrderData = await dayOrderResponse.json()
+      if (dayOrderData.success) {
+        if (dayOrderData.isHoliday) {
+          isHoliday = true
+          holidayName = dayOrderData.holidayName
+        } else {
+          currentDayOrder = dayOrderData.dayOrder
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching day order, using default:', e)
+    }
 
-    // Fetch today's scheduled sessions for this teacher
+    if (isHoliday) {
+      return NextResponse.json({
+        success: true,
+        teacher_id: teacherId,
+        is_holiday: true,
+        holiday_name: holidayName,
+        scheduled_sessions: [],
+        count: 0,
+      })
+    }
+
+    // Fetch today's scheduled sessions for this teacher based on day order
     const { data: scheduledAssignments, error: fetchError } = await supabase
       .from('teacher_subjects')
       .select(`
@@ -27,7 +57,7 @@ export async function GET(request: NextRequest) {
         teacher_id,
         class_id,
         subject_id,
-        day_of_week,
+        day_order,
         start_time,
         end_time,
         auto_session_enabled,
@@ -35,7 +65,7 @@ export async function GET(request: NextRequest) {
         subjects!subject_id(id, subject_code, subject_name)
       `)
       .eq('teacher_id', teacherId)
-      .eq('day_of_week', today)
+      .eq('day_order', currentDayOrder)
       .eq('auto_session_enabled', true)
 
     if (fetchError) {
@@ -63,7 +93,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       teacher_id: teacherId,
-      today: today,
+      current_day_order: currentDayOrder,
       scheduled_sessions: scheduledWithTimes,
       count: scheduledWithTimes.length,
     })

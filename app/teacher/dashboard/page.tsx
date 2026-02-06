@@ -88,7 +88,7 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     // Check authentication immediately
-    const teacherData = localStorage.getItem("user")
+    const teacherData = sessionStorage.getItem("user")
     if (!teacherData) {
       router.replace("/login")
       return
@@ -362,7 +362,8 @@ export default function TeacherDashboard() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("user")
+    sessionStorage.removeItem("user")
+    sessionStorage.removeItem("token")
     router.push("/login")
   }
 

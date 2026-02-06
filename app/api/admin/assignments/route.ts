@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
 // POST - Create new teacher-subject assignment
 export async function POST(request: NextRequest) {
   try {
-    const { teacher_id, subject_id, class_id, day_of_week, start_time, end_time, auto_session_enabled } = await request.json()
+    const { teacher_id, subject_id, class_id, day_order, start_time, end_time, auto_session_enabled } = await request.json()
 
     if (!teacher_id || !subject_id || !class_id) {
       return NextResponse.json(
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
         teacher_id,
         subject_id,
         class_id,
-        day_of_week: day_of_week || null,
+        day_order: day_order || null,
         start_time: start_time || null,
         end_time: end_time || null,
         auto_session_enabled: auto_session_enabled || false,
