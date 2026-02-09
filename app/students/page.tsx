@@ -140,6 +140,28 @@ export default function StudentAttendancePage() {
         return
       }
 
+      // Explicitly request camera permission first
+      console.log("📷 Requesting camera permission...")
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: "environment" } 
+        })
+        // Permission granted, stop the stream (Html5Qrcode will request its own)
+        stream.getTracks().forEach(track => track.stop())
+        console.log("✅ Camera permission granted")
+      } catch (permError: any) {
+        console.error("❌ Camera permission error:", permError)
+        if (permError.name === 'NotAllowedError') {
+          setError("Camera permission denied. Please allow camera access in your browser settings, then refresh the page.")
+        } else if (permError.name === 'NotFoundError') {
+          setError("No camera found on this device. Please use manual entry.")
+        } else {
+          setError(`Camera error: ${permError.message}. Please use manual entry.`)
+        }
+        setScanning(false)
+        return
+      }
+
       // Initialize Html5Qrcode
       const html5QrCode = new Html5Qrcode("qr-reader")
       html5QrCodeRef.current = html5QrCode
