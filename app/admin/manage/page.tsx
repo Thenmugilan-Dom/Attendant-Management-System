@@ -224,7 +224,7 @@ export default function AdminManagementPage() {
 
   const fetchTeachersOptimized = async () => {
     try {
-      const response = await fetch("/api/admin/users?type=teacher")
+      const response = await fetch(`/api/admin/users?type=teacher&t=${Date.now()}`)
       const data = await response.json()
       if (data.success) {
         setTeachers(data.users || [])
@@ -313,7 +313,7 @@ export default function AdminManagementPage() {
 
   const fetchTeachers = async () => {
     try {
-      const response = await fetch("/api/admin/users?type=teacher")
+      const response = await fetch(`/api/admin/users?type=teacher&t=${Date.now()}`)
       const data = await response.json()
       if (data.success) {
         setTeachers(data.users || [])
