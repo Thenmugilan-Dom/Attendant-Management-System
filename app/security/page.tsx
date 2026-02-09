@@ -15,11 +15,7 @@ export default function SecurityLogin() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  // Security credentials (in production, this should be in database)
-  const SECURITY_CREDENTIALS = {
-    username: "security",
-    password: "security@123"
-  }
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,17 +23,35 @@ export default function SecurityLogin() {
     setLoading(true)
 
     try {
-      // Simple credential check for security
-      if (username === SECURITY_CREDENTIALS.username && password === SECURITY_CREDENTIALS.password) {
-        // Store security session
-        localStorage.setItem("security_session", JSON.stringify({
-          loggedIn: true,
-          loginTime: new Date().toISOString()
-        }))
-        router.push("/security/dashboard")
-      } else {
+      // Query Supabase for security user
+      const { data, error } = await supabase
+        .from("security_users")
+        .select("id, username, password, name")
+        .eq("username", username)
+        .single()
+
+      if (error || !data) {
         setError("Invalid username or password")
+        setLoading(false)
+        return
       }
+
+      // In production, use hashed passwords
+      if (data.password !== password) {
+        setError("Invalid username or password")
+        setLoading(false)
+        return
+      }
+
+      // Store security session
+      localStorage.setItem("security_session", JSON.stringify({
+        loggedIn: true,
+        loginTime: new Date().toISOString(),
+        userId: data.id,
+        name: data.name,
+        username: data.username
+      }))
+      router.push("/security/dashboard")
     } catch (err) {
       setError("Login failed. Please try again.")
     } finally {
