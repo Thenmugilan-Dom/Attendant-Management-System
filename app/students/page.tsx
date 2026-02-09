@@ -151,12 +151,33 @@ export default function StudentAttendancePage() {
         throw new Error("No camera found. Please check camera permissions or use manual entry.")
       }
 
-      // Use back camera if available (last camera is usually back camera on mobile)
-      const cameraId = cameras.length > 1 ? cameras[cameras.length - 1].id : cameras[0].id
+      // Find back camera - look for labels containing 'back', 'rear', 'environment'
+      // Fall back to last camera (usually back camera on mobile) or first camera
+      let cameraId = cameras[0].id
+      
+      // Try to find back camera by label
+      const backCamera = cameras.find(camera => {
+        const label = camera.label.toLowerCase()
+        return label.includes('back') || 
+               label.includes('rear') || 
+               label.includes('environment') ||
+               label.includes('0') // Often back camera is labeled with 0
+      })
+      
+      if (backCamera) {
+        cameraId = backCamera.id
+        console.log("📷 Using back camera:", backCamera.label)
+      } else if (cameras.length > 1) {
+        // If no back camera found by label, use last camera (usually back on mobile)
+        cameraId = cameras[cameras.length - 1].id
+        console.log("📷 Using last camera (likely back):", cameras[cameras.length - 1].label)
+      } else {
+        console.log("📷 Using only available camera:", cameras[0].label)
+      }
 
-      // Start scanning
+      // Start scanning with facingMode constraint as fallback
       await html5QrCode.start(
-        cameraId,
+        { facingMode: "environment" }, // This requests back camera
         {
           fps: 10, // Frames per second
           qrbox: { width: 250, height: 250 }, // Scanning box size
