@@ -441,28 +441,15 @@ export default function TeacherDashboard() {
               return
             }
 
-            // Auto-start the session
-            const sessionCode = generateSessionCode()
-            const today = new Date().toISOString().split("T")[0]
+            // Auto-start the session with retry logic
             const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes from now
 
-            const { data: newSession, error } = await supabase
-              .from("attendance_sessions")
-              .insert({
-                teacher_id: user.id,
-                class_id: session.class_id,
-                subject_id: session.subject_id,
-                session_code: sessionCode,
-                session_date: today,
-                expires_at: expiresAt,
-                status: 'active',
-              })
-              .select(`
-                *,
-                classes (class_name, section),
-                subjects (subject_name, subject_code)
-              `)
-              .single()
+            const { data: newSession, error } = await createSessionWithRetry(
+              user.id,
+              session.class_id,
+              session.subject_id,
+              expiresAt
+            )
 
             if (error) {
               console.error("❌ Error auto-starting session:", error)
@@ -668,7 +655,52 @@ export default function TeacherDashboard() {
 
 
   const generateSessionCode = () => {
-    return Math.random().toString(36).substring(2, 10).toUpperCase()
+    // Use timestamp + random for better uniqueness
+    const timestamp = Date.now().toString(36).slice(-4)
+    const random = Math.random().toString(36).substring(2, 6)
+    return (timestamp + random).toUpperCase()
+  }
+
+  // Helper to create session with retry logic for duplicate codes
+  const createSessionWithRetry = async (
+    teacherId: string,
+    classId: string,
+    subjectId: string,
+    expiresAt: string,
+    maxRetries = 3
+  ): Promise<{ data: any; error: any }> => {
+    const today = new Date().toISOString().split("T")[0]
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const sessionCode = generateSessionCode()
+      
+      const { data, error } = await supabase
+        .from("attendance_sessions")
+        .insert({
+          teacher_id: teacherId,
+          class_id: classId,
+          subject_id: subjectId,
+          session_code: sessionCode,
+          session_date: today,
+          expires_at: expiresAt,
+          status: 'active',
+        })
+        .select(`
+          *,
+          classes (class_name, section),
+          subjects (subject_name, subject_code)
+        `)
+        .single()
+
+      // If no error or error is not a duplicate key violation, return
+      if (!error || error.code !== '23505') {
+        return { data, error }
+      }
+      
+      console.log(`⚠️ Session code collision (attempt ${attempt + 1}/${maxRetries}), retrying...`)
+    }
+    
+    return { data: null, error: { message: 'Failed to generate unique session code after max retries' } }
   }
 
   const handleStartSession = async () => {
@@ -687,41 +719,27 @@ export default function TeacherDashboard() {
 
     setLoading(true)
     try {
-      const sessionCode = generateSessionCode()
-      const today = new Date().toISOString().split("T")[0]
       const expiresAt = new Date(Date.now() + 47 * 60 * 1000).toISOString() // 47 minutes from now (45 + 2 extra)
 
-      console.log("🔄 Creating session with:", {
+      console.log("🔄 Creating session with retry logic for:", {
         teacher_id: user.id,
         class_id: selectedClassId,
         subject_id: selectedSubjectId,
-        session_code: sessionCode,
-        session_date: today,
         expires_at: expiresAt,
         status: 'active'
       })
 
-      const { data: session, error } = await supabase
-        .from("attendance_sessions")
-        .insert({
-          teacher_id: user.id,
-          class_id: selectedClassId,
-          subject_id: selectedSubjectId,
-          session_code: sessionCode,
-          session_date: today,
-          expires_at: expiresAt,
-          status: 'active',
-        })
-        .select(`
-          *,
-          classes (class_name, section),
-          subjects (subject_name, subject_code)
-        `)
-        .single()
+      const { data: session, error } = await createSessionWithRetry(
+        user.id,
+        selectedClassId,
+        selectedSubjectId,
+        expiresAt
+      )
 
       if (error) {
         console.error("❌ Supabase error starting session:", error)
         console.error("Error details:", JSON.stringify(error, null, 2))
+        alert(`Failed to start session: ${error.message}`)
         throw error
       }
 
