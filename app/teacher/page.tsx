@@ -827,7 +827,7 @@ export default function TeacherDashboard() {
           student_id,
           marked_at,
           status,
-          students (name, roll_number, email)
+          students (name, student_id, email)
         `)
         .eq("session_id", activeSession.id)
         .order("marked_at", { ascending: true })
@@ -1542,7 +1542,7 @@ export default function TeacherDashboard() {
                                 {liveReportData.map((record: any, index: number) => (
                                   <tr key={record.id} className="border-t border-gray-100 hover:bg-blue-50">
                                     <td className="p-3 text-sm text-gray-500">{index + 1}</td>
-                                    <td className="p-3 text-sm font-mono font-medium">{record.students?.roll_number || 'N/A'}</td>
+                                    <td className="p-3 text-sm font-mono font-medium">{record.students?.student_id || 'N/A'}</td>
                                     <td className="p-3 text-sm">{record.students?.name || 'Unknown'}</td>
                                     <td className="p-3 text-xs text-gray-500">
                                       {new Date(record.marked_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
