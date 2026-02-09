@@ -13,15 +13,15 @@ interface ODRequest {
   student_id: string
   student_name: string
   student_email: string
-  roll_number: string
+  student_id_text: string
   class_name: string
   section: string
-  od_date: string
-  start_date: string
-  end_date: string
+  od_start_date: string
+  od_end_date: string
   reason: string
-  teacher_approval: string
-  admin_approval: string
+  status: string
+  teacher_approved: boolean
+  admin_approved: boolean
   created_at: string
   subject_name?: string
   subject_code?: string
@@ -65,10 +65,10 @@ export default function SecurityDashboard() {
 
     try {
       // First, find the student
-      let studentQuery = supabase.from("students").select("id, name, email, roll_number, class_id")
+      let studentQuery = supabase.from("students").select("id, name, email, student_id, class_id")
       
       if (searchType === "roll") {
-        studentQuery = studentQuery.ilike("roll_number", `%${searchQuery}%`)
+        studentQuery = studentQuery.ilike("student_id", `%${searchQuery}%`)
       } else if (searchType === "name") {
         studentQuery = studentQuery.ilike("name", `%${searchQuery}%`)
       } else {
@@ -95,11 +95,12 @@ export default function SecurityDashboard() {
         .from("od_requests")
         .select(`
           *,
-          students (name, email, roll_number, class_id, classes (class_name, section)),
+          students (name, email, student_id, class_id, classes (class_name, section)),
           subjects (subject_name, subject_code)
         `)
         .in("student_id", studentIds)
-        .or(`od_date.eq.${todayDate},and(start_date.lte.${todayDate},end_date.gte.${todayDate})`)
+        .lte("od_start_date", todayDate)
+        .gte("od_end_date", todayDate)
         .order("created_at", { ascending: false })
 
       if (odError) {
@@ -114,15 +115,15 @@ export default function SecurityDashboard() {
         student_id: od.student_id,
         student_name: od.students?.name || "Unknown",
         student_email: od.students?.email || "",
-        roll_number: od.students?.roll_number || "",
+        student_id_text: od.students?.student_id || "",
         class_name: od.students?.classes?.class_name || "",
         section: od.students?.classes?.section || "",
-        od_date: od.od_date,
-        start_date: od.start_date,
-        end_date: od.end_date,
+        od_start_date: od.od_start_date,
+        od_end_date: od.od_end_date,
         reason: od.reason,
-        teacher_approval: od.teacher_approval || "pending",
-        admin_approval: od.admin_approval || "pending",
+        status: od.status || "pending",
+        teacher_approved: od.teacher_approved || false,
+        admin_approved: od.admin_approved || false,
         created_at: od.created_at,
         subject_name: od.subjects?.subject_name,
         subject_code: od.subjects?.subject_code,
@@ -142,11 +143,13 @@ export default function SecurityDashboard() {
     router.push("/security")
   }
 
-  const getApprovalStatus = (teacherApproval: string, adminApproval: string) => {
-    if (teacherApproval === "approved" && adminApproval === "approved") {
-      return { status: "APPROVED", color: "bg-green-500", icon: CheckCircle }
-    } else if (teacherApproval === "rejected" || adminApproval === "rejected") {
+  const getApprovalStatus = (teacherApproved: boolean, adminApproved: boolean, status: string) => {
+    if (status === "rejected") {
       return { status: "REJECTED", color: "bg-red-500", icon: XCircle }
+    } else if (teacherApproved && adminApproved) {
+      return { status: "APPROVED", color: "bg-green-500", icon: CheckCircle }
+    } else if (status === "approved") {
+      return { status: "APPROVED", color: "bg-green-500", icon: CheckCircle }
     } else {
       return { status: "PENDING", color: "bg-yellow-500", icon: Clock }
     }
@@ -272,7 +275,7 @@ export default function SecurityDashboard() {
             )}
 
             {results.map((od) => {
-              const approval = getApprovalStatus(od.teacher_approval, od.admin_approval)
+              const approval = getApprovalStatus(od.teacher_approved, od.admin_approved, od.status)
               const StatusIcon = approval.icon
               
               return (
@@ -287,7 +290,7 @@ export default function SecurityDashboard() {
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-white">{od.student_name}</h3>
-                          <p className="text-slate-400">{od.roll_number}</p>
+                          <p className="text-slate-400">{od.student_id_text}</p>
                           <p className="text-sm text-slate-500">{od.class_name} - {od.section}</p>
                         </div>
                       </div>
@@ -299,9 +302,9 @@ export default function SecurityDashboard() {
                           <div>
                             <p className="text-xs text-slate-500">OD Date</p>
                             <p className="text-sm text-white">
-                              {od.start_date && od.end_date 
-                                ? `${formatDate(od.start_date)} - ${formatDate(od.end_date)}`
-                                : formatDate(od.od_date)}
+                              {od.od_start_date === od.od_end_date
+                                ? formatDate(od.od_start_date)
+                                : `${formatDate(od.od_start_date)} - ${formatDate(od.od_end_date)}`}
                             </p>
                           </div>
                         </div>
@@ -333,27 +336,23 @@ export default function SecurityDashboard() {
                     {/* Approval Details */}
                     <div className="mt-4 grid grid-cols-2 gap-4">
                       <div className="flex items-center gap-2">
-                        {od.teacher_approval === "approved" ? (
+                        {od.teacher_approved ? (
                           <CheckCircle className="w-4 h-4 text-green-500" />
-                        ) : od.teacher_approval === "rejected" ? (
-                          <XCircle className="w-4 h-4 text-red-500" />
                         ) : (
                           <Clock className="w-4 h-4 text-yellow-500" />
                         )}
                         <span className="text-sm text-slate-400">
-                          Teacher: <span className="text-white capitalize">{od.teacher_approval}</span>
+                          Teacher: <span className="text-white">{od.teacher_approved ? "Approved" : "Pending"}</span>
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        {od.admin_approval === "approved" ? (
+                        {od.admin_approved ? (
                           <CheckCircle className="w-4 h-4 text-green-500" />
-                        ) : od.admin_approval === "rejected" ? (
-                          <XCircle className="w-4 h-4 text-red-500" />
                         ) : (
                           <Clock className="w-4 h-4 text-yellow-500" />
                         )}
                         <span className="text-sm text-slate-400">
-                          Admin: <span className="text-white capitalize">{od.admin_approval}</span>
+                          Admin: <span className="text-white">{od.admin_approved ? "Approved" : "Pending"}</span>
                         </span>
                       </div>
                     </div>
