@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/field"
 import { Camera, CheckCircle, AlertCircle, QrCode, X, ZoomIn, ZoomOut } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
+import { supabase } from "@/lib/supabase"
 import { ResponsiveWrapper } from "@/components/responsive-wrapper"
 import { InteractiveCard } from "@/components/interactive-card"
 
@@ -107,6 +108,43 @@ export default function StudentAttendancePage() {
       console.log("🔄 Timer cleanup completed")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionData?.sessionId, sessionData?.expiresAt])
+
+  // Poll for session updates (e.g., teacher extends time)
+  useEffect(() => {
+    if (!sessionData?.sessionId) return
+
+    const pollSession = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("attendance_sessions")
+          .select("expires_at, status")
+          .eq("id", sessionData.sessionId)
+          .single()
+
+        if (error || !data) return
+
+        // If session was ended by teacher
+        if (data.status === "completed") {
+          setSessionExpired(true)
+          return
+        }
+
+        // If expires_at changed (teacher extended time), update session data
+        if (data.expires_at && data.expires_at !== sessionData.expiresAt) {
+          console.log("⏰ Session time updated:", { old: sessionData.expiresAt, new: data.expires_at })
+          setSessionData(prev => prev ? { ...prev, expiresAt: data.expires_at } : prev)
+          setSessionExpired(false)
+        }
+      } catch (err) {
+        console.error("Poll error:", err)
+      }
+    }
+
+    // Poll every 10 seconds
+    const pollInterval = setInterval(pollSession, 10000)
+
+    return () => clearInterval(pollInterval)
   }, [sessionData?.sessionId, sessionData?.expiresAt])
 
   // Cleanup on unmount
