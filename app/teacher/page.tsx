@@ -127,6 +127,11 @@ export default function TeacherDashboard() {
   const [customExtendMinutes, setCustomExtendMinutes] = useState("")
   const [audioAlertPlayed, setAudioAlertPlayed] = useState(false)
 
+  // Live report
+  const [showLiveReport, setShowLiveReport] = useState(false)
+  const [liveReportData, setLiveReportData] = useState<any[]>([])
+  const [loadingLiveReport, setLoadingLiveReport] = useState(false)
+
   // Fetch pending OD requests for this teacher
   const fetchPendingODRequests = async (teacherId: string) => {
     try {
@@ -808,6 +813,47 @@ export default function TeacherDashboard() {
     }
   }
 
+  // Fetch live attendance report for current session
+  const fetchLiveReport = async () => {
+    if (!activeSession) return
+
+    setLoadingLiveReport(true)
+    try {
+      // Get attendance records for this session
+      const { data: records, error: recordsError } = await supabase
+        .from("attendance_records")
+        .select(`
+          id,
+          student_id,
+          marked_at,
+          status,
+          students (name, roll_number, email)
+        `)
+        .eq("session_id", activeSession.id)
+        .order("marked_at", { ascending: true })
+
+      if (recordsError) {
+        console.error("Error fetching live report:", recordsError)
+        return
+      }
+
+      setLiveReportData(records || [])
+    } catch (err) {
+      console.error("Error fetching live report:", err)
+    } finally {
+      setLoadingLiveReport(false)
+    }
+  }
+
+  // Auto-refresh live report when open
+  useEffect(() => {
+    if (!showLiveReport || !activeSession) return
+
+    fetchLiveReport()
+    const interval = setInterval(fetchLiveReport, 5000) // Refresh every 5 seconds
+    return () => clearInterval(interval)
+  }, [showLiveReport, activeSession?.id])
+
   // Extend session time by custom minutes
   const handleExtendSession = async (minutes: number = 10) => {
     if (!activeSession) return
@@ -1341,8 +1387,16 @@ export default function TeacherDashboard() {
                       </div>
                   )}
 
+                  {/* View Live Report Button */}
+                  <Button
+                    className="w-full mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold"
+                    onClick={() => setShowLiveReport(true)}
+                  >
+                    📋 View Live Attendance Report
+                  </Button>
+
                   {/* Action Buttons */}
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex gap-2 mt-2">
                     <Button
                       className="flex-1 text-sm sm:text-base"
                       variant="outline"
@@ -1443,6 +1497,69 @@ export default function TeacherDashboard() {
                         >
                           Cancel
                         </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Report Dialog */}
+                  {showLiveReport && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowLiveReport(false)}>
+                      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-lg font-bold">📋 Live Attendance Report</h3>
+                              <p className="text-xs text-blue-100 mt-1">
+                                {activeSession?.classes?.class_name} {activeSession?.classes?.section} • {activeSession?.subjects?.subject_name}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-2xl font-bold">{liveReportData.length}</div>
+                              <div className="text-xs text-blue-100">Present</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="overflow-y-auto max-h-[55vh]">
+                          {loadingLiveReport && liveReportData.length === 0 ? (
+                            <div className="p-8 text-center text-gray-500">Loading...</div>
+                          ) : liveReportData.length === 0 ? (
+                            <div className="p-8 text-center text-gray-500">
+                              <p className="text-lg">No students marked yet</p>
+                              <p className="text-sm mt-1">Waiting for students to scan QR code...</p>
+                            </div>
+                          ) : (
+                            <table className="w-full">
+                              <thead className="bg-gray-50 sticky top-0">
+                                <tr>
+                                  <th className="text-left p-3 text-xs font-semibold text-gray-600">#</th>
+                                  <th className="text-left p-3 text-xs font-semibold text-gray-600">Roll No</th>
+                                  <th className="text-left p-3 text-xs font-semibold text-gray-600">Name</th>
+                                  <th className="text-left p-3 text-xs font-semibold text-gray-600">Time</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {liveReportData.map((record: any, index: number) => (
+                                  <tr key={record.id} className="border-t border-gray-100 hover:bg-blue-50">
+                                    <td className="p-3 text-sm text-gray-500">{index + 1}</td>
+                                    <td className="p-3 text-sm font-mono font-medium">{record.students?.roll_number || 'N/A'}</td>
+                                    <td className="p-3 text-sm">{record.students?.name || 'Unknown'}</td>
+                                    <td className="p-3 text-xs text-gray-500">
+                                      {new Date(record.marked_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+
+                        <div className="border-t p-4 flex items-center justify-between bg-gray-50">
+                          <p className="text-xs text-gray-500">Auto-refreshes every 5 seconds</p>
+                          <Button size="sm" variant="outline" onClick={() => setShowLiveReport(false)}>
+                            Close
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
