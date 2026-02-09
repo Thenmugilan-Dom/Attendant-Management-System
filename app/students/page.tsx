@@ -1197,13 +1197,8 @@ export default function StudentAttendancePage() {
             </p>
             <Button 
               onClick={() => {
-                // Check if user is logged in
-                const user = sessionStorage.getItem('user');
-                if (!user) {
-                  window.location.href = '/login';
-                } else {
-                  window.location.href = '/student/od-request';
-                }
+                // Go directly to OD request page - it has its own email-based authentication
+                window.location.href = '/student/od-request';
               }}
               variant="outline"
               className="w-full touch-target text-xs sm:text-sm"
