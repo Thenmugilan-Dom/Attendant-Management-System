@@ -23,8 +23,9 @@ interface ODRequest {
   status: string;
   teacher_approved: boolean;
   admin_approved: boolean;
-  students?: { name: string; email: string }[];
-  classes?: { class_name: string }[];
+  student_id: string;
+  students?: { name: string; email: string; student_id: string };
+  classes?: { class_name: string };
   duration_days?: number;
 }
 
@@ -71,7 +72,8 @@ export default function AdminODApprovalsPage() {
           status,
           teacher_approved,
           admin_approved,
-          students (name, email),
+          student_id,
+          students:student_id (name, email, student_id),
           classes (class_name)
         `
         )
@@ -100,7 +102,8 @@ export default function AdminODApprovalsPage() {
           status,
           teacher_approved,
           admin_approved,
-          students (name, email),
+          student_id,
+          students:student_id (name, email, student_id),
           classes (class_name)
         `
         )
@@ -129,7 +132,8 @@ export default function AdminODApprovalsPage() {
           status,
           teacher_approved,
           admin_approved,
-          students (name, email),
+          student_id,
+          students:student_id (name, email, student_id),
           classes (class_name)
         `
         )
@@ -190,14 +194,14 @@ export default function AdminODApprovalsPage() {
   }
 
   const ODRequestCard = ({ request }: { request: ODRequest }) => {
-    const student = request.students?.[0];
+    const student = request.students;
 
     return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
       <div className="flex justify-between items-start gap-4 mb-3">
         <div className="flex-1">
-          <h3 className="font-semibold text-sm sm:text-base">{student?.name}</h3>
-          <p className="text-xs sm:text-sm text-muted-foreground">{student?.email}</p>
+          <h3 className="font-semibold text-sm sm:text-base">{student?.name || 'Student'}</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground">{student?.email || 'N/A'}</p>
           <p className="text-xs sm:text-sm text-muted-foreground mt-2">
             📅 {new Date(request.od_start_date).toLocaleDateString('en-US', {
               year: 'numeric',
