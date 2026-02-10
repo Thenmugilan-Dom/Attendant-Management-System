@@ -58,14 +58,31 @@ export default function StudentDashboard() {
   const [selectedDaySessions, setSelectedDaySessions] = useState<AttendanceRecord[]>([]);
 
   useEffect(() => {
+    // Check if student email is in localStorage
     const studentEmail = localStorage.getItem('studentEmail');
+    
+    // If no email and it's the first load, try to restore from session
     if (!studentEmail) {
+      const sessionStudent = sessionStorage.getItem('studentData');
+      if (sessionStudent) {
+        try {
+          const parsedStudent = JSON.parse(sessionStudent);
+          setStudent(parsedStudent);
+          localStorage.setItem('studentEmail', parsedStudent.email);
+          fetchStudentData(parsedStudent.email);
+          return;
+        } catch (err) {
+          console.error('Error parsing session student:', err);
+        }
+      }
+      
+      // No student data found, redirect to login
       router.push('/student/od-request');
       return;
     }
 
     fetchStudentData(studentEmail);
-  }, []);
+  }, [router]);
 
   const fetchStudentData = async (email: string) => {
     try {
@@ -79,12 +96,18 @@ export default function StudentDashboard() {
         .limit(1);
 
       if (studentError || !studentData || studentData.length === 0) {
+        // Clear stored data if student not found
+        localStorage.removeItem('studentEmail');
+        sessionStorage.removeItem('studentData');
         router.push('/student/od-request');
         return;
       }
 
       const student = studentData[0];
       setStudent(student);
+      
+      // Store student data in session for persistence across page refreshes
+      sessionStorage.setItem('studentData', JSON.stringify(student));
 
       // Fetch OD requests
       await fetchODRequests(student.id);

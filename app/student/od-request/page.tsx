@@ -117,16 +117,25 @@ export default function ODRequestPage() {
       const classData = Array.isArray(student.classes) ? student.classes[0] : student.classes;
       const department = classData?.class_name || 'Unknown';
 
-      setStudentData({
+      const studentDataToStore = {
         id: student.id,
         name: student.name,
         email: student.email,
         class_id: student.class_id,
         department: department,
-      });
+      };
 
-      // Store email for dashboard
+      setStudentData(studentDataToStore);
+
+      // Store email and student data for persistence across pages
       localStorage.setItem('studentEmail', student.email);
+      sessionStorage.setItem('studentData', JSON.stringify({
+        id: student.id,
+        name: student.name,
+        email: student.email,
+        class_id: student.class_id,
+      }));
+      
       setClassId(student.class_id);
 
       // Fetch teachers for this class
