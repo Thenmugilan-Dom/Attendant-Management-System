@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import QRCode from "react-qr-code"
-import { Calendar, Users, CheckCircle, QrCode, GraduationCap } from "lucide-react"
+import { Calendar, Users, CheckCircle, QrCode, GraduationCap, AlertCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { generateComprehensivePDF, generateComprehensiveCSV } from "@/lib/reportGenerator"
 
@@ -1057,6 +1057,23 @@ export default function TeacherDashboard() {
           <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Manage your classes and track student attendance
           </p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Button
+            onClick={() => router.push('/teacher/mark-absence')}
+            className="h-auto p-4 justify-start text-left hover:bg-primary/10 border border-primary/20 bg-primary/5"
+            variant="outline"
+          >
+            <div className="flex items-start gap-3 w-full">
+              <AlertCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-sm">Mark Absence</p>
+                <p className="text-xs text-muted-foreground mt-1">Report absence & assign substitutes</p>
+              </div>
+            </div>
+          </Button>
         </div>
 
         {/* Pending OD Requests Alert */}

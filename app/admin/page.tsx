@@ -6,7 +6,7 @@ import { DashboardNav } from "@/components/dashboard-nav"
 import { StatsCard } from "@/components/ui/stats-card"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, GraduationCap, FileText, Settings, RefreshCw } from "lucide-react"
+import { Users, GraduationCap, FileText, Settings, RefreshCw, AlertCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 interface User {
@@ -295,6 +295,23 @@ export default function AdminDashboard() {
                 <FileText className="mr-2 h-4 w-4" />
                 <span className="hidden sm:inline">View OD Requests</span>
                 <span className="sm:hidden">OD Requests</span>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg sm:text-xl">Teacher Absences</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">View absences and class transfers</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push("/admin/teacher-absences")} 
+                className="w-full text-sm sm:text-base"
+              >
+                <AlertCircle className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">View Teacher Absences</span>
+                <span className="sm:hidden">Absences</span>
               </Button>
             </CardContent>
           </Card>

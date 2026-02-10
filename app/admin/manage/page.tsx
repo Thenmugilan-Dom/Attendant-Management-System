@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, BookOpen, GraduationCap, Link2, Plus, Pencil, Trash2, LogOut, LayoutDashboard, Eye, Upload, Download, Calendar, RefreshCw, Clock, X } from "lucide-react"
+import { Users, BookOpen, GraduationCap, Link2, Plus, Pencil, Trash2, LogOut, LayoutDashboard, Eye, Upload, Download, Calendar, RefreshCw, Clock, X, AlertCircle } from "lucide-react"
 
 interface User {
   id: string
@@ -1115,6 +1115,13 @@ export default function AdminManagementPage() {
           >
             <Clock className="h-4 w-4 mr-2" />
             Timetable
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin/teacher-absences")}
+          >
+            <AlertCircle className="h-4 w-4 mr-2" />
+            Absences
           </Button>
         </div>
 
