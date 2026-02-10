@@ -61,46 +61,45 @@ export default function SecurityLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-2xl border-slate-700 bg-slate-800/50 backdrop-blur">
-        <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center">
+    <div className="min-h-screen bg-muted/40 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center space-y-4 bg-primary/5 rounded-t-lg">
+          <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center">
             <Shield className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold text-white">Security Login</CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardTitle className="text-2xl font-bold">Security Login</CardTitle>
+          <CardDescription>
             Verify student OD approvals
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Username</label>
+              <label className="text-sm font-medium">Username</label>
               <Input
                 type="text"
                 placeholder="Enter username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Password</label>
+              <label className="text-sm font-medium">Password</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 pr-10"
+                  className="pr-10"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -108,7 +107,7 @@ export default function SecurityLogin() {
             </div>
 
             {error && (
-              <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+              <div className="p-3 bg-destructive/10 border border-destructive/50 rounded-lg text-destructive text-sm">
                 {error}
               </div>
             )}
@@ -116,14 +115,14 @@ export default function SecurityLogin() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold"
+              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold"
             >
               {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
 
-          <div className="mt-6 p-4 bg-slate-700/50 rounded-lg">
-            <p className="text-xs text-slate-400 text-center">
+          <div className="mt-6 p-4 bg-muted rounded-lg">
+            <p className="text-xs text-muted-foreground text-center">
               This portal is for security personnel to verify student OD (On Duty) approvals.
             </p>
           </div>

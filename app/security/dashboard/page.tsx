@@ -167,27 +167,26 @@ export default function SecurityDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
-      <header className="bg-slate-800/80 backdrop-blur border-b border-slate-700 sticky top-0 z-10">
+      <header className="bg-card border-b sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Security Portal</h1>
-              <p className="text-xs text-slate-400">OD Verification System</p>
+              <h1 className="text-xl font-bold">Security Portal</h1>
+              <p className="text-xs text-muted-foreground">OD Verification System</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-sm text-slate-300">{formatDate(todayDate)}</p>
-              <p className="text-xs text-slate-500">Today</p>
+              <p className="text-sm">{formatDate(todayDate)}</p>
+              <p className="text-xs text-muted-foreground">Today</p>
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="border-slate-600 text-slate-300 hover:bg-slate-700"
             >
               <LogOut className="w-4 h-4 mr-2" />
               Logout
@@ -198,9 +197,9 @@ export default function SecurityDashboard() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Search Card */}
-        <Card className="bg-slate-800/50 border-slate-700 mb-8">
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               <Search className="w-5 h-5" />
               Search Student OD Status
             </CardTitle>
@@ -212,7 +211,7 @@ export default function SecurityDashboard() {
                   variant={searchType === "roll" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setSearchType("roll")}
-                  className={searchType === "roll" ? "bg-amber-500 hover:bg-amber-600" : "border-slate-600 text-slate-300"}
+                  className={searchType === "roll" ? "bg-primary hover:bg-primary/90 text-white" : ""}
                 >
                   Roll No
                 </Button>
@@ -220,7 +219,7 @@ export default function SecurityDashboard() {
                   variant={searchType === "name" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setSearchType("name")}
-                  className={searchType === "name" ? "bg-amber-500 hover:bg-amber-600" : "border-slate-600 text-slate-300"}
+                  className={searchType === "name" ? "bg-primary hover:bg-primary/90 text-white" : ""}
                 >
                   Name
                 </Button>
@@ -228,7 +227,7 @@ export default function SecurityDashboard() {
                   variant={searchType === "email" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setSearchType("email")}
-                  className={searchType === "email" ? "bg-amber-500 hover:bg-amber-600" : "border-slate-600 text-slate-300"}
+                  className={searchType === "email" ? "bg-primary hover:bg-primary/90 text-white" : ""}
                 >
                   Email
                 </Button>
@@ -239,12 +238,11 @@ export default function SecurityDashboard() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                 />
                 <Button
                   onClick={handleSearch}
                   disabled={loading}
-                  className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                  className="bg-primary hover:bg-primary/90 text-white"
                 >
                   {loading ? "Searching..." : "Search"}
                 </Button>
@@ -256,18 +254,18 @@ export default function SecurityDashboard() {
         {/* Results */}
         {searched && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">
+            <h2 className="text-lg font-semibold">
               {results.length > 0 
                 ? `Found ${results.length} OD request(s) for today` 
                 : "No OD requests found for today"}
             </h2>
 
             {results.length === 0 && (
-              <Card className="bg-slate-800/50 border-slate-700">
+              <Card>
                 <CardContent className="py-12 text-center">
-                  <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-                  <p className="text-slate-300 text-lg">No approved OD found for this student today</p>
-                  <p className="text-slate-500 text-sm mt-2">
+                  <AlertTriangle className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
+                  <p className="text-lg">No approved OD found for this student today</p>
+                  <p className="text-muted-foreground text-sm mt-2">
                     The student does not have any OD request approved for {formatDate(todayDate)}
                   </p>
                 </CardContent>
@@ -279,29 +277,29 @@ export default function SecurityDashboard() {
               const StatusIcon = approval.icon
               
               return (
-                <Card key={od.id} className="bg-slate-800/50 border-slate-700 overflow-hidden">
+                <Card key={od.id} className="overflow-hidden">
                   <div className={`h-2 ${approval.color}`} />
                   <CardContent className="p-6">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                       {/* Student Info */}
                       <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center">
-                          <User className="w-6 h-6 text-slate-400" />
+                        <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                          <User className="w-6 h-6 text-muted-foreground" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-semibold text-white">{od.student_name}</h3>
-                          <p className="text-slate-400">{od.student_id_text}</p>
-                          <p className="text-sm text-slate-500">{od.class_name} - {od.section}</p>
+                          <h3 className="text-lg font-semibold">{od.student_name}</h3>
+                          <p className="text-muted-foreground">{od.student_id_text}</p>
+                          <p className="text-sm text-muted-foreground">{od.class_name} - {od.section}</p>
                         </div>
                       </div>
 
                       {/* OD Details */}
                       <div className="flex flex-col sm:flex-row gap-4 lg:gap-8">
                         <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-slate-500" />
+                          <Calendar className="w-4 h-4 text-muted-foreground" />
                           <div>
-                            <p className="text-xs text-slate-500">OD Date</p>
-                            <p className="text-sm text-white">
+                            <p className="text-xs text-muted-foreground">OD Date</p>
+                            <p className="text-sm">
                               {od.od_start_date === od.od_end_date
                                 ? formatDate(od.od_start_date)
                                 : `${formatDate(od.od_start_date)} - ${formatDate(od.od_end_date)}`}
@@ -311,10 +309,10 @@ export default function SecurityDashboard() {
 
                         {od.subject_name && (
                           <div className="flex items-center gap-2">
-                            <BookOpen className="w-4 h-4 text-slate-500" />
+                            <BookOpen className="w-4 h-4 text-muted-foreground" />
                             <div>
-                              <p className="text-xs text-slate-500">Subject</p>
-                              <p className="text-sm text-white">{od.subject_code || od.subject_name}</p>
+                              <p className="text-xs text-muted-foreground">Subject</p>
+                              <p className="text-sm">{od.subject_code || od.subject_name}</p>
                             </div>
                           </div>
                         )}
@@ -328,31 +326,31 @@ export default function SecurityDashboard() {
                     </div>
 
                     {/* Reason */}
-                    <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
-                      <p className="text-xs text-slate-500 mb-1">Reason</p>
-                      <p className="text-sm text-slate-300">{od.reason}</p>
+                    <div className="mt-4 p-3 bg-muted rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">Reason</p>
+                      <p className="text-sm">{od.reason}</p>
                     </div>
 
                     {/* Approval Details */}
                     <div className="mt-4 grid grid-cols-2 gap-4">
                       <div className="flex items-center gap-2">
                         {od.teacher_approved ? (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4 text-green-600" />
                         ) : (
-                          <Clock className="w-4 h-4 text-yellow-500" />
+                          <Clock className="w-4 h-4 text-yellow-600" />
                         )}
-                        <span className="text-sm text-slate-400">
-                          Teacher: <span className="text-white">{od.teacher_approved ? "Approved" : "Pending"}</span>
+                        <span className="text-sm">
+                          Teacher: <span className="font-medium">{od.teacher_approved ? "Approved" : "Pending"}</span>
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         {od.admin_approved ? (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4 text-green-600" />
                         ) : (
-                          <Clock className="w-4 h-4 text-yellow-500" />
+                          <Clock className="w-4 h-4 text-yellow-600" />
                         )}
-                        <span className="text-sm text-slate-400">
-                          Admin: <span className="text-white">{od.admin_approved ? "Approved" : "Pending"}</span>
+                        <span className="text-sm">
+                          Admin: <span className="font-medium">{od.admin_approved ? "Approved" : "Pending"}</span>
                         </span>
                       </div>
                     </div>
@@ -365,44 +363,44 @@ export default function SecurityDashboard() {
 
         {/* Quick Guide */}
         {!searched && (
-          <Card className="bg-slate-800/50 border-slate-700">
+          <Card>
             <CardContent className="py-8">
-              <h3 className="text-lg font-semibold text-white mb-4 text-center">How to Use</h3>
+              <h3 className="text-lg font-semibold mb-4 text-center">How to Use</h3>
               <div className="grid sm:grid-cols-3 gap-6 max-w-2xl mx-auto">
                 <div className="text-center">
-                  <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <span className="text-amber-500 font-bold">1</span>
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <span className="text-primary font-bold">1</span>
                   </div>
-                  <p className="text-sm text-slate-400">Select search type (Roll No, Name, or Email)</p>
+                  <p className="text-sm text-muted-foreground">Select search type (Roll No, Name, or Email)</p>
                 </div>
                 <div className="text-center">
-                  <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <span className="text-amber-500 font-bold">2</span>
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <span className="text-primary font-bold">2</span>
                   </div>
-                  <p className="text-sm text-slate-400">Enter student details and click Search</p>
+                  <p className="text-sm text-muted-foreground">Enter student details and click Search</p>
                 </div>
                 <div className="text-center">
-                  <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <span className="text-amber-500 font-bold">3</span>
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <span className="text-primary font-bold">3</span>
                   </div>
-                  <p className="text-sm text-slate-400">Check if OD is APPROVED by both Teacher & Admin</p>
+                  <p className="text-sm text-muted-foreground">Check if OD is APPROVED by both Teacher & Admin</p>
                 </div>
               </div>
 
-              <div className="mt-8 p-4 bg-slate-700/50 rounded-lg max-w-md mx-auto">
-                <h4 className="text-sm font-semibold text-white mb-2">Status Legend</h4>
+              <div className="mt-8 p-4 bg-muted rounded-lg max-w-md mx-auto">
+                <h4 className="text-sm font-semibold mb-2">Status Legend</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full" />
-                    <span className="text-slate-300">APPROVED - Student can leave campus</span>
+                    <div className="w-3 h-3 bg-green-600 rounded-full" />
+                    <span className="text-muted-foreground">APPROVED - Student can leave campus</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                    <span className="text-slate-300">PENDING - Awaiting approval</span>
+                    <div className="w-3 h-3 bg-yellow-600 rounded-full" />
+                    <span className="text-muted-foreground">PENDING - Awaiting approval</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full" />
-                    <span className="text-slate-300">REJECTED - OD not approved</span>
+                    <div className="w-3 h-3 bg-red-600 rounded-full" />
+                    <span className="text-muted-foreground">REJECTED - OD not approved</span>
                   </div>
                 </div>
               </div>
