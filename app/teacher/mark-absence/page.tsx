@@ -28,17 +28,8 @@ interface TeacherClass {
   id: string
   class_id: string
   subject_id: string
-  classes: {
-    id: string
-    class_name: string
-    section: string
-    year: number
-  }
-  subjects: {
-    id: string
-    subject_name: string
-    subject_code: string
-  }
+  classes: any
+  subjects: any
 }
 
 interface SubstituteTeacher {
@@ -112,7 +103,7 @@ export default function MarkAbsencePage() {
         if (classesError) {
           console.error("Error fetching classes:", classesError)
         } else {
-          setTeacherClasses(classesData || [])
+          setTeacherClasses((classesData as any) || [])
         }
 
         // Fetch all teachers for substitute selection
@@ -153,6 +144,10 @@ export default function MarkAbsencePage() {
       return
     }
 
+    // Extract classes data (handle both object and array cases)
+    const classInfo = Array.isArray(classData.classes) ? classData.classes[0] : classData.classes
+    const subjectInfo = Array.isArray(classData.subjects) ? classData.subjects[0] : classData.subjects
+
     // Generate array of dates between start and end
     const start = new Date(startDate)
     const end = new Date(endDate)
@@ -164,9 +159,9 @@ export default function MarkAbsencePage() {
 
     const newTransfer: TransferEntry = {
       classId: selectedClass,
-      className: `${classData.classes.class_name} ${classData.classes.section}`,
+      className: `${classInfo.class_name} ${classInfo.section}`,
       subjectId: classData.subject_id,
-      subjectName: classData.subjects.subject_name,
+      subjectName: subjectInfo.subject_name,
       substituteTeacherId: selectedSubstitute,
       substituteTeacherName: substituteData.name,
       dates,
@@ -472,11 +467,15 @@ export default function MarkAbsencePage() {
                 className="w-full px-3 py-2 border rounded-md text-sm"
               >
                 <option value="">Select a class...</option>
-                {teacherClasses.map((tc) => (
-                  <option key={tc.class_id} value={tc.class_id}>
-                    {tc.classes.class_name} {tc.classes.section} - {tc.subjects.subject_name}
-                  </option>
-                ))}
+                {teacherClasses.map((tc) => {
+                  const classInfo = Array.isArray(tc.classes) ? tc.classes[0] : tc.classes
+                  const subjectInfo = Array.isArray(tc.subjects) ? tc.subjects[0] : tc.subjects
+                  return (
+                    <option key={tc.class_id} value={tc.class_id}>
+                      {classInfo?.class_name} {classInfo?.section} - {subjectInfo?.subject_name}
+                    </option>
+                  )
+                })}
               </select>
             </div>
 
