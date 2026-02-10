@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardNav } from "@/components/dashboard-nav"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Search, GraduationCap, Mail, Book } from "lucide-react"
+import { ArrowLeft, Search, GraduationCap, Mail, Book, ChevronDown, ChevronRight, Users } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 interface User {
@@ -32,6 +32,7 @@ export default function StudentsPage() {
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     // Check authentication
@@ -65,11 +66,39 @@ export default function StudentsPage() {
     }
   }, [searchTerm, students])
 
+  // Group students by class
+  const groupedStudents = useMemo(() => {
+    const groups: Record<string, Student[]> = {}
+    filteredStudents.forEach(student => {
+      const key = student.class_name
+        ? `${student.class_name}${student.section ? " - " + student.section : ""}`
+        : "Unassigned"
+      if (!groups[key]) groups[key] = []
+      groups[key].push(student)
+    })
+    // Sort class names alphabetically
+    const sorted: Record<string, Student[]> = {}
+    Object.keys(groups).sort((a, b) => {
+      if (a === "Unassigned") return 1
+      if (b === "Unassigned") return -1
+      return a.localeCompare(b)
+    }).forEach(key => {
+      sorted[key] = groups[key]
+    })
+    return sorted
+  }, [filteredStudents])
+
+  // When search term changes, auto-expand all classes so filtered results are visible
+  useEffect(() => {
+    if (searchTerm.trim() !== "") {
+      setExpandedClasses(new Set(Object.keys(groupedStudents)))
+    }
+  }, [searchTerm, groupedStudents])
+
   const fetchStudents = async () => {
     try {
       setLoading(true)
       
-      // Fetch students from the students table (same as admin manage panel)
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
         .select(`
@@ -83,10 +112,6 @@ export default function StudentsPage() {
       if (studentsError) {
         console.error("Error fetching students:", studentsError)
       } else {
-        console.log("👥 Fetched students from students table:", studentsData?.length || 0, "students")
-        console.log("📋 Sample students:", studentsData?.slice(0, 3))
-        
-        // Transform the data to match expected format
         const formattedStudents = (studentsData || []).map(student => ({
           id: student.student_id,
           email: student.email,
@@ -106,9 +131,31 @@ export default function StudentsPage() {
     }
   }
 
+  const toggleClass = (className: string) => {
+    setExpandedClasses(prev => {
+      const next = new Set(prev)
+      if (next.has(className)) {
+        next.delete(className)
+      } else {
+        next.add(className)
+      }
+      return next
+    })
+  }
+
+  const expandAll = () => {
+    setExpandedClasses(new Set(Object.keys(groupedStudents)))
+  }
+
+  const collapseAll = () => {
+    setExpandedClasses(new Set())
+  }
+
   if (!user) {
     return null
   }
+
+  const classNames = Object.keys(groupedStudents)
 
   return (
     <div className="min-h-screen bg-muted/40">
@@ -135,7 +182,7 @@ export default function StudentsPage() {
           </div>
         </div>
 
-        {/* Search */}
+        {/* Search & Controls */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -144,69 +191,146 @@ export default function StudentsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center space-x-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, or class..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm"
-              />
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center space-x-2 flex-1 min-w-[250px]">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, or class..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={expandAll}>
+                  Expand All
+                </Button>
+                <Button variant="outline" size="sm" onClick={collapseAll}>
+                  Collapse All
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Students List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GraduationCap className="h-5 w-5" />
-              Students ({filteredStudents.length})
-            </CardTitle>
-            <CardDescription>
-              {searchTerm ? `Showing results for "${searchTerm}"` : "All registered students in the system"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading students...</div>
-            ) : filteredStudents.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+        {/* Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <GraduationCap className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-2xl font-bold">{filteredStudents.length}</p>
+                  <p className="text-xs text-muted-foreground">Total Students</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-blue-500" />
+                <div>
+                  <p className="text-2xl font-bold">{classNames.length}</p>
+                  <p className="text-xs text-muted-foreground">Classes</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Students Grouped by Class */}
+        {loading ? (
+          <Card>
+            <CardContent className="py-8">
+              <div className="text-center text-muted-foreground">Loading students...</div>
+            </CardContent>
+          </Card>
+        ) : classNames.length === 0 ? (
+          <Card>
+            <CardContent className="py-8">
+              <div className="text-center text-muted-foreground">
                 {searchTerm ? "No students found matching your search." : "No students found."}
               </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredStudents.map((student) => (
-                  <div key={student.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <GraduationCap className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{student.name}</h3>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {student.email}
-                          </div>
-                          {student.class_name && (
-                            <div className="flex items-center gap-1">
-                              <Book className="h-3 w-3" />
-                              {student.class_name} {student.section}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {classNames.map((className) => {
+              const classStudents = groupedStudents[className]
+              const isExpanded = expandedClasses.has(className)
+
+              return (
+                <Card key={className}>
+                  <CardHeader
+                    className="cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg"
+                    onClick={() => toggleClass(className)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-3 text-lg">
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <Book className="h-5 w-5 text-primary" />
+                        {className}
+                      </CardTitle>
+                      <span className="text-sm font-normal text-muted-foreground bg-primary/10 px-3 py-1 rounded-full">
+                        {classStudents.length} student{classStudents.length !== 1 ? "s" : ""}
+                      </span>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Joined: {new Date(student.created_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  </CardHeader>
+
+                  {isExpanded && (
+                    <CardContent className="pt-0">
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-muted/50 text-left text-sm font-medium text-muted-foreground">
+                              <th className="px-4 py-3 w-12">#</th>
+                              <th className="px-4 py-3">Name</th>
+                              <th className="px-4 py-3">Email</th>
+                              <th className="px-4 py-3">Student ID</th>
+                              <th className="px-4 py-3">Joined</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {classStudents.map((student, idx) => (
+                              <tr key={student.id} className="hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 text-sm text-muted-foreground">{idx + 1}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                      <GraduationCap className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <span className="font-medium">{student.name}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-muted-foreground">
+                                  <div className="flex items-center gap-1">
+                                    <Mail className="h-3 w-3" />
+                                    {student.email}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm font-mono text-muted-foreground">
+                                  {student.id}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-muted-foreground">
+                                  {new Date(student.created_at).toLocaleDateString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+        )}
       </main>
     </div>
   )

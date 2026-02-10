@@ -2206,7 +2206,7 @@ export default function AdminManagementPage() {
                         <SelectContent>
                           {classes.map((cls) => (
                             <SelectItem key={cls.id} value={cls.id}>
-                              {cls.class_name} {cls.section || ''}
+                              {cls.class_name} {cls.section || ''}{cls.year ? ` (Year ${cls.year})` : ''}
                             </SelectItem>
                           ))}
                         </SelectContent>
