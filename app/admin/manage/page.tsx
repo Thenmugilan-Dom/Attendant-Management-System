@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, BookOpen, GraduationCap, Link2, Plus, Pencil, Trash2, LogOut, LayoutDashboard, Eye, Upload, Download, Calendar, RefreshCw, Clock } from "lucide-react"
+import { Users, BookOpen, GraduationCap, Link2, Plus, Pencil, Trash2, LogOut, LayoutDashboard, Eye, Upload, Download, Calendar, RefreshCw, Clock, X } from "lucide-react"
 
 interface User {
   id: string
@@ -123,6 +123,7 @@ export default function AdminManagementPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [students, setStudents] = useState<Student[]>([])
+  const [selectedStudentClass, setSelectedStudentClass] = useState<string | null>(null)
   
   // Day Order states
   const [currentDayOrder, setCurrentDayOrder] = useState<number | null>(null)
@@ -1353,69 +1354,112 @@ export default function AdminManagementPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Class</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.length === 0 ? (
+            <CardContent className="space-y-4">
+              {/* Class Filter */}
+              <div className="flex items-end gap-2">
+                <div className="flex-1 md:w-80">
+                  <label className="text-sm font-medium mb-2 block">Filter by Class</label>
+                  <Select value={selectedStudentClass || ""} onValueChange={(value) => setSelectedStudentClass(value || null)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a class to view students..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {cls.class_name} {cls.section || ""}{cls.year ? ` (Year ${cls.year})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {selectedStudentClass && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedStudentClass(null)}
+                    className="text-xs"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+
+              {/* Students Table */}
+              {!selectedStudentClass ? (
+                <div className="flex items-center justify-center py-12 text-center">
+                  <div>
+                    <GraduationCap className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                    <p className="text-muted-foreground mb-2">Select a class to view students</p>
+                    <p className="text-xs text-muted-foreground">Choose a class from the dropdown above to display students</p>
+                  </div>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        No students found. Click &quot;Add Student&quot; or &quot;Import Excel&quot; to add students.
-                      </TableCell>
+                      <TableHead>Student ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    students.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell className="font-medium">{student.student_id}</TableCell>
-                        <TableCell>{student.name}</TableCell>
-                        <TableCell>{student.email}</TableCell>
-                        <TableCell>
-                          {student.classes?.class_name} {student.classes?.section || ""}
-                          {student.classes?.year ? ` (Year ${student.classes.year})` : ""}
-                        </TableCell>
-                        <TableCell>{student.phone || "-"}</TableCell>
-                        <TableCell>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            student.status === "active" 
-                              ? "bg-green-100 text-green-800" 
-                              : "bg-red-100 text-red-800"
-                          }`}>
-                            {student.status}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditDialog(student)}
-                            title="Edit Student"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleStudentDelete(student.id)}
-                            title="Delete Student"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
+                  </TableHeader>
+                  <TableBody>
+                    {students.filter(s => s.class_id === selectedStudentClass).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground">
+                          No students found in this class. Click &quot;Add Student&quot; to add students.
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      students
+                        .filter(s => s.class_id === selectedStudentClass)
+                        .map((student) => (
+                          <TableRow key={student.id}>
+                            <TableCell className="font-medium">{student.student_id}</TableCell>
+                            <TableCell>{student.name}</TableCell>
+                            <TableCell>{student.email}</TableCell>
+                            <TableCell>
+                              {student.classes?.class_name} {student.classes?.section || ""}
+                              {student.classes?.year ? ` (Year ${student.classes.year})` : ""}
+                            </TableCell>
+                            <TableCell>{student.phone || "-"}</TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                student.status === "active" 
+                                  ? "bg-green-100 text-green-800" 
+                                  : "bg-red-100 text-red-800"
+                              }`}>
+                                {student.status}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditDialog(student)}
+                                title="Edit Student"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStudentDelete(student.id)}
+                                title="Delete Student"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         )}

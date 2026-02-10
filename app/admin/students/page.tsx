@@ -6,7 +6,14 @@ import { DashboardNav } from "@/components/dashboard-nav"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Search, GraduationCap, Mail, Book, ChevronDown, ChevronRight, Users } from "lucide-react"
+import { ArrowLeft, Search, GraduationCap, Mail, Book, ChevronDown, ChevronRight, Users, X } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { supabase } from "@/lib/supabase"
 
 interface User {
@@ -32,6 +39,7 @@ export default function StudentsPage() {
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [selectedClass, setSelectedClass] = useState<string | null>(null)
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -53,18 +61,30 @@ export default function StudentsPage() {
   }, [router])
 
   useEffect(() => {
-    // Filter students based on search term
-    if (searchTerm.trim() === "") {
-      setFilteredStudents(students)
-    } else {
-      const filtered = students.filter(student =>
+    // Filter students based on search term and selected class
+    let filtered = students
+
+    // Apply class filter
+    if (selectedClass) {
+      filtered = filtered.filter(student => {
+        const studentClassKey = student.class_name
+          ? `${student.class_name}${student.section ? " - " + student.section : ""}`
+          : "Unassigned"
+        return studentClassKey === selectedClass
+      })
+    }
+
+    // Apply search term filter
+    if (searchTerm.trim() !== "") {
+      filtered = filtered.filter(student =>
         student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (student.class_name && student.class_name.toLowerCase().includes(searchTerm.toLowerCase()))
       )
-      setFilteredStudents(filtered)
     }
-  }, [searchTerm, students])
+
+    setFilteredStudents(filtered)
+  }, [searchTerm, students, selectedClass])
 
   // Group students by class
   const groupedStudents = useMemo(() => {
@@ -187,21 +207,57 @@ export default function StudentsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-5 w-5" />
-              Search Students
+              Filters & Search
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center space-x-2 flex-1 min-w-[250px]">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, email, or class..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-sm"
-                />
+            <div className="space-y-4">
+              {/* Class Filter */}
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">Filter by Class</label>
+                <div className="flex gap-2 flex-wrap items-end">
+                  <Select value={selectedClass || ""} onValueChange={(value) => setSelectedClass(value || null)}>
+                    <SelectTrigger className="w-full md:w-80">
+                      <SelectValue placeholder="Select a class to view students..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Classes</SelectItem>
+                      {classNames.map((className) => (
+                        <SelectItem key={className} value={className}>
+                          {className} ({groupedStudents[className].length} students)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedClass && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedClass(null)}
+                      className="text-xs"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Clear
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* Search */}
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">Search Students</label>
+                <div className="flex items-center space-x-2 flex-1">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name, email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="flex gap-2 pt-2">
                 <Button variant="outline" size="sm" onClick={expandAll}>
                   Expand All
                 </Button>
@@ -261,22 +317,31 @@ export default function StudentsPage() {
               const isExpanded = expandedClasses.has(className)
 
               return (
-                <Card key={className}>
+                <Card key={className} className="overflow-hidden">
                   <CardHeader
-                    className="cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg"
+                    className="cursor-pointer hover:bg-primary/5 transition-all duration-200 rounded-t-lg select-none"
                     onClick={() => toggleClass(className)}
                   >
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-3 text-lg">
-                        {isExpanded ? (
-                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        )}
-                        <Book className="h-5 w-5 text-primary" />
-                        {className}
-                      </CardTitle>
-                      <span className="text-sm font-normal text-muted-foreground bg-primary/10 px-3 py-1 rounded-full">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="flex-shrink-0">
+                          {isExpanded ? (
+                            <ChevronDown className="h-6 w-6 text-primary font-bold" />
+                          ) : (
+                            <ChevronRight className="h-6 w-6 text-primary font-bold" />
+                          )}
+                        </div>
+                        <Book className="h-6 w-6 text-primary flex-shrink-0" />
+                        <div className="min-w-0">
+                          <CardTitle className="text-lg font-bold text-primary truncate">
+                            {className}
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Click to view {classStudents.length} student{classStudents.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="flex-shrink-0 text-sm font-semibold text-white bg-primary px-3 py-2 rounded-lg whitespace-nowrap">
                         {classStudents.length} student{classStudents.length !== 1 ? "s" : ""}
                       </span>
                     </div>
