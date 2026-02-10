@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Clock, Calendar, X } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Calendar, X, Download } from 'lucide-react';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -193,6 +193,63 @@ export default function StudentDashboard() {
     } catch (error) {
       console.error('Error fetching attendance records:', error);
     }
+  };
+
+  const downloadODCertificate = (request: ODRequest) => {
+    // Create a simple text document for OD certificate
+    const startDate = new Date(request.od_start_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    
+    const endDate = new Date(request.od_end_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const certificateText = `
+════════════════════════════════════════════════════════════════
+                    ON DUTY (OD) CERTIFICATE
+════════════════════════════════════════════════════════════════
+
+Student Name: ${student?.name}
+Email: ${student?.email}
+
+OD Period:
+  From: ${startDate}
+  To: ${endDate}
+  Duration: ${request.duration_days} day${request.duration_days !== 1 ? 's' : ''}
+
+Reason for OD:
+  ${request.reason}
+
+Approval Status:
+  ✓ Teacher Approval: APPROVED
+  ✓ Admin Approval: APPROVED
+  ✓ Status: APPROVED
+
+Certificate Issue Date: ${new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })}
+
+════════════════════════════════════════════════════════════════
+This is an electronically generated certificate.
+Please keep this for your records.
+════════════════════════════════════════════════════════════════
+    `;
+
+    // Create a blob and trigger download
+    const element = document.createElement('a');
+    const file = new Blob([certificateText], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `OD_Certificate_${student?.name?.replace(/\s+/g, '_')}_${startDate.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
   };
 
   const getStatusBadge = (request: ODRequest) => {
@@ -387,11 +444,20 @@ export default function StudentDashboard() {
 
                     {/* Approval Status Details */}
                     {request.status === 'approved' && (
-                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-sm text-green-800 font-medium">
-                          ✓ Your OD request has been approved! Attendance will be marked as "On Duty" for the
-                          selected dates.
-                        </p>
+                      <div className="mt-4 space-y-3">
+                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-sm text-green-800 font-medium">
+                            ✓ Your OD request has been approved! Attendance will be marked as "On Duty" for the
+                            selected dates.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => downloadODCertificate(request)}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download OD Certificate
+                        </Button>
                       </div>
                     )}
                     {request.status === 'rejected' && (
