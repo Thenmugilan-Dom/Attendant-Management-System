@@ -437,7 +437,7 @@ export default function TimetablePage() {
 
   const getClassName = (classId: string) => {
     const cls = classes.find(c => c.id === classId)
-    return cls ? `${cls.class_name}${cls.section ? ` - ${cls.section}` : ""}` : ""
+    return cls ? `${cls.class_name}${cls.section ? ` - ${cls.section}` : ""}${cls.year ? ` (Year ${cls.year})` : ""}` : ""
   }
 
   const getSubjectsForClass = () => {
@@ -504,7 +504,7 @@ export default function TimetablePage() {
                   <SelectContent>
                     {classes.map(cls => (
                       <SelectItem key={cls.id} value={cls.id}>
-                        {cls.class_name}{cls.section ? ` - ${cls.section}` : ""}
+                        {cls.class_name}{cls.section ? ` - ${cls.section}` : ""}{cls.year ? ` (Year ${cls.year})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
