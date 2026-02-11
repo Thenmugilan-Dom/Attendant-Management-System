@@ -745,6 +745,44 @@ export default function StudentAttendancePage() {
     setLoading(true)
 
     try {
+      // Re-check location at the moment of marking attendance if required
+      let currentLocation: {latitude: number; longitude: number} | null = null
+      
+      if (sessionData.location_required && sessionData.class_latitude && sessionData.class_longitude) {
+        console.log("📍 Re-checking location before marking attendance...")
+        setMessage("Verifying your location...")
+        
+        try {
+          currentLocation = await getStudentLocation()
+          console.log("📍 Current student location:", currentLocation)
+          
+          // Calculate distance from class
+          const distance = calculateDistance(
+            currentLocation.latitude,
+            currentLocation.longitude,
+            sessionData.class_latitude,
+            sessionData.class_longitude
+          )
+          
+          const allowedRadius = sessionData.location_radius || 100
+          console.log(`📍 Distance from class: ${distance.toFixed(2)}m (allowed: ${allowedRadius}m)`)
+          
+          if (distance > allowedRadius) {
+            setError(`You are ${Math.round(distance)}m away from the class. You must be within ${allowedRadius}m to mark attendance.`)
+            setLoading(false)
+            return
+          }
+          
+          console.log("✅ Location verified - student is within allowed radius")
+          setStudentLocation(currentLocation)
+        } catch (locError) {
+          const locErrorMsg = locError instanceof Error ? locError.message : "Failed to get location"
+          setError(`Location required: ${locErrorMsg}`)
+          setLoading(false)
+          return
+        }
+      }
+
       // Verify OTP from localStorage
       console.log("🔐 Verifying OTP from localStorage...")
       console.log("🔐 Email:", email)
@@ -758,7 +796,7 @@ export default function StudentAttendancePage() {
       }
 
       const otpData = JSON.parse(storedData)
-      console.log("� Retrieved from localStorage:", otpData)
+      console.log("📝 Retrieved from localStorage:", otpData)
 
       // Check if OTP expired
       if (Date.now() > otpData.expiresAt) {
@@ -799,23 +837,12 @@ export default function StudentAttendancePage() {
       localStorage.removeItem("attendance_otp")
       console.log("🗑️ OTP removed from localStorage")
 
-      // Get stored location if available
-      const storedOtpData = localStorage.getItem("attendance_otp_location")
+      // Use freshly captured location (from the re-check above) or studentLocation state
       let locationData: {studentLatitude?: number; studentLongitude?: number} = {}
-      if (storedOtpData) {
-        try {
-          const parsed = JSON.parse(storedOtpData)
-          locationData = {
-            studentLatitude: parsed.studentLatitude,
-            studentLongitude: parsed.studentLongitude
-          }
-        } catch (e) {
-          console.log("Could not parse stored location data")
-        }
-      }
-      
-      // Use studentLocation state if available (from OTP step)
-      if (studentLocation) {
+      if (currentLocation) {
+        locationData.studentLatitude = currentLocation.latitude
+        locationData.studentLongitude = currentLocation.longitude
+      } else if (studentLocation) {
         locationData.studentLatitude = studentLocation.latitude
         locationData.studentLongitude = studentLocation.longitude
       }
