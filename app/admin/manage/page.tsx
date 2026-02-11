@@ -2036,7 +2036,7 @@ export default function AdminManagementPage() {
 
               {/* Class Form */}
               {activeTab === "classes" && (
-                <form onSubmit={handleClassSubmit}>
+                <form key={`class-form-${selectedItem?.id || 'new'}`} onSubmit={handleClassSubmit}>
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="class_name">Class Name *</Label>
@@ -2145,11 +2145,27 @@ export default function AdminManagementPage() {
                                     latInput.value = position.coords.latitude.toFixed(8)
                                     lngInput.value = position.coords.longitude.toFixed(8)
                                   }
+                                  const accuracy = position.coords.accuracy
+                                  if (accuracy > 50) {
+                                    alert(`Location captured with ${Math.round(accuracy)}m accuracy. For better accuracy, try again outdoors or wait for GPS to stabilize.`)
+                                  }
                                 },
                                 (error) => {
-                                  alert("Could not get location: " + error.message)
+                                  let message = "Could not get location."
+                                  switch (error.code) {
+                                    case error.PERMISSION_DENIED:
+                                      message = "Location permission denied. Please enable location access in your browser settings."
+                                      break
+                                    case error.POSITION_UNAVAILABLE:
+                                      message = "Location unavailable. Please try again or enter coordinates manually."
+                                      break
+                                    case error.TIMEOUT:
+                                      message = "Location request timed out. Please try again."
+                                      break
+                                  }
+                                  alert(message)
                                 },
-                                { enableHighAccuracy: true }
+                                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                               )
                             } else {
                               alert("Geolocation is not supported by your browser")

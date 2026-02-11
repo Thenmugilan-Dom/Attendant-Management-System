@@ -614,10 +614,23 @@ export default function StudentAttendancePage() {
     setLoading(true)
 
     try {
-      // Check location if required by the class
+      // Check location if required by the class (use explicit null checks to handle 0 coordinates)
       let currentLocation: {latitude: number; longitude: number} | null = null
       
-      if (sessionData.location_required && sessionData.class_latitude && sessionData.class_longitude) {
+      console.log("📍 Session location settings:", {
+        location_required: sessionData.location_required,
+        class_latitude: sessionData.class_latitude,
+        class_longitude: sessionData.class_longitude,
+        location_radius: sessionData.location_radius
+      })
+      
+      const hasLocationRestriction = sessionData.location_required && 
+                                      sessionData.class_latitude !== null && 
+                                      sessionData.class_latitude !== undefined && 
+                                      sessionData.class_longitude !== null && 
+                                      sessionData.class_longitude !== undefined
+      
+      if (hasLocationRestriction) {
         console.log("📍 Location check required for this class")
         setCheckingLocation(true)
         setMessage("Checking your location...")
@@ -631,8 +644,8 @@ export default function StudentAttendancePage() {
           const distance = calculateDistance(
             currentLocation.latitude,
             currentLocation.longitude,
-            sessionData.class_latitude,
-            sessionData.class_longitude
+            sessionData.class_latitude!,
+            sessionData.class_longitude!
           )
           
           const allowedRadius = sessionData.location_radius || 100
@@ -658,6 +671,8 @@ export default function StudentAttendancePage() {
         } finally {
           setCheckingLocation(false)
         }
+      } else {
+        console.log("📍 No location restriction for this class")
       }
 
       const response = await fetch("/api/auth/send-otp", {
@@ -748,7 +763,14 @@ export default function StudentAttendancePage() {
       // Re-check location at the moment of marking attendance if required
       let currentLocation: {latitude: number; longitude: number} | null = null
       
-      if (sessionData.location_required && sessionData.class_latitude && sessionData.class_longitude) {
+      // Use explicit null checks to handle 0 coordinates
+      const hasLocationRestriction = sessionData.location_required && 
+                                      sessionData.class_latitude !== null && 
+                                      sessionData.class_latitude !== undefined && 
+                                      sessionData.class_longitude !== null && 
+                                      sessionData.class_longitude !== undefined
+      
+      if (hasLocationRestriction) {
         console.log("📍 Re-checking location before marking attendance...")
         setMessage("Verifying your location...")
         
@@ -760,8 +782,8 @@ export default function StudentAttendancePage() {
           const distance = calculateDistance(
             currentLocation.latitude,
             currentLocation.longitude,
-            sessionData.class_latitude,
-            sessionData.class_longitude
+            sessionData.class_latitude!,
+            sessionData.class_longitude!
           )
           
           const allowedRadius = sessionData.location_radius || 100

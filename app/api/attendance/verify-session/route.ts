@@ -81,6 +81,21 @@ export async function POST(request: NextRequest) {
     const classInfo = session.classes as any
     const subjectInfo = session.subjects as any
 
+    // Check if location restriction is properly set (explicit null checks to handle 0 coordinates)
+    const hasLocationRestriction = classInfo?.latitude !== null && 
+                                    classInfo?.latitude !== undefined && 
+                                    classInfo?.longitude !== null && 
+                                    classInfo?.longitude !== undefined
+
+    console.log('📍 Session location data:', {
+      sessionId: session.id,
+      hasClassInfo: !!classInfo,
+      latitude: classInfo?.latitude,
+      longitude: classInfo?.longitude,
+      location_radius: classInfo?.location_radius,
+      hasLocationRestriction
+    })
+
     // Return session details with complete information
     return NextResponse.json({
       success: true,
@@ -105,10 +120,10 @@ export async function POST(request: NextRequest) {
         expires_at: session.expires_at,
         remaining_seconds: remainingSeconds,
         // Geolocation data for location-restricted attendance
-        location_required: !!(classInfo?.latitude && classInfo?.longitude),
-        class_latitude: classInfo?.latitude || null,
-        class_longitude: classInfo?.longitude || null,
-        location_radius: classInfo?.location_radius || 100,
+        location_required: hasLocationRestriction,
+        class_latitude: classInfo?.latitude ?? null,
+        class_longitude: classInfo?.longitude ?? null,
+        location_radius: classInfo?.location_radius ?? 100,
       },
     })
   } catch (error) {

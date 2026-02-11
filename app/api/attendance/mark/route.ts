@@ -159,23 +159,52 @@ export async function POST(request: NextRequest) {
 
     // Check geolocation if class has location restriction
     const classData = session.classes as any
-    if (classData?.latitude && classData?.longitude) {
+    console.log('📍 Class location data:', { 
+      hasClassData: !!classData,
+      latitude: classData?.latitude, 
+      longitude: classData?.longitude, 
+      location_radius: classData?.location_radius,
+      studentLat: studentLatitude,
+      studentLng: studentLongitude
+    })
+    
+    // Check if class has location requirement (using explicit null check to handle 0 coordinates)
+    const hasLocationRestriction = classData?.latitude !== null && 
+                                    classData?.latitude !== undefined && 
+                                    classData?.longitude !== null && 
+                                    classData?.longitude !== undefined
+    
+    if (hasLocationRestriction) {
       console.log('📍 Class has location restriction - verifying student location')
       
-      if (!studentLatitude || !studentLongitude) {
-        console.log('❌ Student location not provided but class requires it')
+      // Validate student location data
+      const hasStudentLocation = studentLatitude !== null && 
+                                  studentLatitude !== undefined && 
+                                  studentLongitude !== null && 
+                                  studentLongitude !== undefined &&
+                                  !isNaN(Number(studentLatitude)) && 
+                                  !isNaN(Number(studentLongitude))
+      
+      if (!hasStudentLocation) {
+        console.log('❌ Student location not provided or invalid:', { studentLatitude, studentLongitude })
         return NextResponse.json(
-          { error: 'Location verification required. Please enable location access.' },
+          { error: 'Location verification required. Please enable location access and try again.' },
           { status: 403 }
         )
       }
 
+      // Parse values to ensure they're numbers
+      const classLat = Number(classData.latitude)
+      const classLng = Number(classData.longitude)
+      const studLat = Number(studentLatitude)
+      const studLng = Number(studentLongitude)
+
       // Calculate distance using Haversine formula
       const R = 6371e3 // Earth's radius in meters
-      const φ1 = classData.latitude * Math.PI / 180
-      const φ2 = studentLatitude * Math.PI / 180
-      const Δφ = (studentLatitude - classData.latitude) * Math.PI / 180
-      const Δλ = (studentLongitude - classData.longitude) * Math.PI / 180
+      const φ1 = classLat * Math.PI / 180
+      const φ2 = studLat * Math.PI / 180
+      const Δφ = (studLat - classLat) * Math.PI / 180
+      const Δλ = (studLng - classLng) * Math.PI / 180
 
       const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
                 Math.cos(φ1) * Math.cos(φ2) *
@@ -184,10 +213,11 @@ export async function POST(request: NextRequest) {
       const distance = R * c // Distance in meters
 
       const allowedRadius = classData.location_radius || 100
+      console.log(`📍 Location check: Student(${studLat.toFixed(6)}, ${studLng.toFixed(6)}) Class(${classLat.toFixed(6)}, ${classLng.toFixed(6)})`)
       console.log(`📍 Distance from class: ${distance.toFixed(2)}m (allowed: ${allowedRadius}m)`)
 
       if (distance > allowedRadius) {
-        console.log(`❌ Student is too far from class location`)
+        console.log(`❌ Student is too far from class location (${distance.toFixed(2)}m > ${allowedRadius}m)`)
         return NextResponse.json(
           { 
             error: `You are ${Math.round(distance)}m away from the classroom. You must be within ${allowedRadius}m to mark attendance.`,
@@ -199,6 +229,8 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('✅ Location verification passed')
+    } else {
+      console.log('📍 Class has no location restriction - skipping location check')
     }
 
     // Verify student belongs to the session's class
