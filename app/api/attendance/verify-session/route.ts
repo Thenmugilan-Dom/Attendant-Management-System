@@ -22,7 +22,10 @@ export async function POST(request: NextRequest) {
           id,
           class_name,
           section,
-          year
+          year,
+          latitude,
+          longitude,
+          location_radius
         ),
         subjects (
           id,
@@ -101,6 +104,11 @@ export async function POST(request: NextRequest) {
         semester: subjectInfo?.semester || '',
         expires_at: session.expires_at,
         remaining_seconds: remainingSeconds,
+        // Geolocation data for location-restricted attendance
+        location_required: !!(classInfo?.latitude && classInfo?.longitude),
+        class_latitude: classInfo?.latitude || null,
+        class_longitude: classInfo?.longitude || null,
+        location_radius: classInfo?.location_radius || 100,
       },
     })
   } catch (error) {

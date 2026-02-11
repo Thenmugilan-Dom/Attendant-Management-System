@@ -77,11 +77,19 @@ CREATE TABLE IF NOT EXISTS classes (
   total_students INTEGER DEFAULT 0,
   department TEXT NOT NULL DEFAULT 'General',
   class_email TEXT,
+  latitude DECIMAL(10, 8) DEFAULT NULL,
+  longitude DECIMAL(11, 8) DEFAULT NULL,
+  location_radius INTEGER DEFAULT 100,
   created_by_admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(class_name, section, year)
 );
+
+-- Comments for geolocation columns
+COMMENT ON COLUMN classes.latitude IS 'Class location latitude (optional). If set, students must be near this location to mark attendance.';
+COMMENT ON COLUMN classes.longitude IS 'Class location longitude (optional). If set, students must be near this location to mark attendance.';
+COMMENT ON COLUMN classes.location_radius IS 'Allowed radius in meters from class location. Default: 100 meters.';
 
 
 -- ───────────────────────────────────────────────────────────────────────

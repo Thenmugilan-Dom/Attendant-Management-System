@@ -69,9 +69,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { adminId, department, class_name, section, year, class_email } = body
+    const { adminId, department, class_name, section, year, class_email, latitude, longitude, location_radius } = body
 
-    console.log('📝 Creating class:', { adminId, department, class_name, section, year, class_email })
+    console.log('📝 Creating class:', { adminId, department, class_name, section, year, class_email, latitude, longitude, location_radius })
 
     if (!adminId) {
       return NextResponse.json(
@@ -94,6 +94,9 @@ export async function POST(request: NextRequest) {
       year: year ? parseInt(year) : null,
       total_students: 0,
       class_email: class_email?.trim() || null,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      location_radius: location_radius ? parseInt(location_radius) : 100,
     }
 
     // Try to add department if provided
@@ -148,9 +151,9 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { adminId, department, classId, class_name, section, year, class_email } = body
+    const { adminId, department, classId, class_name, section, year, class_email, latitude, longitude, location_radius } = body
 
-    console.log('✏️ Updating class:', { adminId, department, classId, class_name, section, year, class_email })
+    console.log('✏️ Updating class:', { adminId, department, classId, class_name, section, year, class_email, latitude, longitude, location_radius })
 
     if (!adminId || !classId) {
       return NextResponse.json(
@@ -164,6 +167,9 @@ export async function PUT(request: NextRequest) {
     if (section !== undefined) updateData.section = section ? section.trim() : null
     if (year !== undefined) updateData.year = year ? parseInt(year) : null
     if (class_email !== undefined) updateData.class_email = class_email ? class_email.trim() : null
+    if (latitude !== undefined) updateData.latitude = latitude ? parseFloat(latitude) : null
+    if (longitude !== undefined) updateData.longitude = longitude ? parseFloat(longitude) : null
+    if (location_radius !== undefined) updateData.location_radius = location_radius ? parseInt(location_radius) : 100
 
     // Update class using service role
     let query = supabaseAdmin

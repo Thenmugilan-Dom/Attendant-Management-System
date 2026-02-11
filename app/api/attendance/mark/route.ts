@@ -3,9 +3,9 @@ import { supabase } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, studentId, sessionId, sessionCode } = await request.json()
+    const { email, studentId, sessionId, sessionCode, studentLatitude, studentLongitude } = await request.json()
 
-    console.log('📥 Received request:', { email, studentId, sessionId, sessionCode })
+    console.log('📥 Received request:', { email, studentId, sessionId, sessionCode, studentLatitude, studentLongitude })
 
     // Validate input - accept either email or studentId
     if ((!email && !studentId) || !sessionId || !sessionCode) {
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Verifying session...')
     const { data: session, error: sessionError } = await supabase
       .from('attendance_sessions')
-      .select('*, classes(id, class_name, section)')
+      .select('*, classes(id, class_name, section, latitude, longitude, location_radius)')
       .eq('id', sessionId)
       .eq('session_code', sessionCode)
       .eq('status', 'active')
@@ -155,6 +155,50 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid or inactive session' },
         { status: 400 }
       )
+    }
+
+    // Check geolocation if class has location restriction
+    const classData = session.classes as any
+    if (classData?.latitude && classData?.longitude) {
+      console.log('📍 Class has location restriction - verifying student location')
+      
+      if (!studentLatitude || !studentLongitude) {
+        console.log('❌ Student location not provided but class requires it')
+        return NextResponse.json(
+          { error: 'Location verification required. Please enable location access.' },
+          { status: 403 }
+        )
+      }
+
+      // Calculate distance using Haversine formula
+      const R = 6371e3 // Earth's radius in meters
+      const φ1 = classData.latitude * Math.PI / 180
+      const φ2 = studentLatitude * Math.PI / 180
+      const Δφ = (studentLatitude - classData.latitude) * Math.PI / 180
+      const Δλ = (studentLongitude - classData.longitude) * Math.PI / 180
+
+      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      const distance = R * c // Distance in meters
+
+      const allowedRadius = classData.location_radius || 100
+      console.log(`📍 Distance from class: ${distance.toFixed(2)}m (allowed: ${allowedRadius}m)`)
+
+      if (distance > allowedRadius) {
+        console.log(`❌ Student is too far from class location`)
+        return NextResponse.json(
+          { 
+            error: `You are ${Math.round(distance)}m away from the classroom. You must be within ${allowedRadius}m to mark attendance.`,
+            distance: Math.round(distance),
+            allowed_radius: allowedRadius
+          },
+          { status: 403 }
+        )
+      }
+
+      console.log('✅ Location verification passed')
     }
 
     // Verify student belongs to the session's class

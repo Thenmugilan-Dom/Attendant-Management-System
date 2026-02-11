@@ -1,11 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Clock, Calendar, X, Download } from 'lucide-react';
+import { 
+  CheckCircle, XCircle, Clock, Calendar, X, Download, 
+  Bell, BellRing, Filter, TrendingUp, BookOpen, 
+  BarChart3, PieChart, FileText, RefreshCw, ChevronDown,
+  AlertTriangle, Info, Award, Search
+} from 'lucide-react';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -43,9 +48,43 @@ interface AttendanceRecord {
     };
     subjects?: {
       subject_name: string;
+      subject_code?: string;
     };
   };
 }
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'success' | 'urgent';
+  priority: 'low' | 'medium' | 'high';
+  is_read: boolean;
+  created_at: string;
+  expires_at?: string;
+}
+
+interface SubjectBreakdown {
+  subject_name: string;
+  subject_code?: string;
+  total: number;
+  present: number;
+  absent: number;
+  onDuty: number;
+  percentage: number;
+}
+
+interface MonthlyBreakdown {
+  month: string;
+  monthName: string;
+  total: number;
+  present: number;
+  absent: number;
+  onDuty: number;
+  percentage: number;
+}
+
+type TabType = 'overview' | 'history' | 'subjects' | 'reports' | 'notifications';
 
 export default function StudentDashboard() {
   const router = useRouter();
@@ -56,6 +95,25 @@ export default function StudentDashboard() {
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().substring(0, 7));
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDaySessions, setSelectedDaySessions] = useState<AttendanceRecord[]>([]);
+  
+  // New enhanced states
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  
+  // Filter states
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateRangeStart, setDateRangeStart] = useState<string>('');
+  const [dateRangeEnd, setDateRangeEnd] = useState<string>('');
+  
+  // Report states
+  const [subjectBreakdown, setSubjectBreakdown] = useState<SubjectBreakdown[]>([]);
+  const [monthlyBreakdown, setMonthlyBreakdown] = useState<MonthlyBreakdown[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     // Check if student email is in localStorage
@@ -114,6 +172,12 @@ export default function StudentDashboard() {
 
       // Fetch attendance records
       await fetchAttendanceRecords(student.id);
+      
+      // Fetch notifications
+      await fetchNotifications(student.id, student.class_id);
+      
+      // Fetch report data
+      await fetchReportData(student.id);
     } catch (error) {
       console.error('Error fetching student data:', error);
     } finally {
@@ -192,6 +256,187 @@ export default function StudentDashboard() {
       }
     } catch (error) {
       console.error('Error fetching attendance records:', error);
+    }
+  };
+
+  // Fetch notifications for the student
+  const fetchNotifications = useCallback(async (studentId: string, classId: string) => {
+    try {
+      const response = await fetch(`/api/student/notifications?studentId=${studentId}&classId=${classId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  }, []);
+
+  // Fetch report data with subject and monthly breakdowns
+  const fetchReportData = useCallback(async (studentId: string) => {
+    try {
+      setReportLoading(true);
+      const response = await fetch(`/api/student/reports?studentId=${studentId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSubjectBreakdown(data.subjectBreakdown || []);
+        setMonthlyBreakdown(data.monthlyBreakdown || []);
+      }
+    } catch (error) {
+      console.error('Error fetching report data:', error);
+    } finally {
+      setReportLoading(false);
+    }
+  }, []);
+
+  // Mark notification as read
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      await fetch('/api/student/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId }),
+      });
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    if (!student) return;
+    try {
+      await fetch('/api/student/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: student.id, markAll: true }),
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  // Refresh all data
+  const refreshData = async () => {
+    if (!student) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchODRequests(student.id),
+        fetchAttendanceRecords(student.id),
+        fetchNotifications(student.id, student.class_id),
+        fetchReportData(student.id),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Download report as CSV
+  const downloadReport = async (format: 'csv' | 'json' = 'csv') => {
+    if (!student) return;
+    try {
+      const response = await fetch(`/api/student/reports?studentId=${student.id}&format=${format}`);
+      const data = await response.json();
+      
+      if (format === 'csv' && data.csv) {
+        const blob = new Blob([data.csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance_report_${student.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance_report_${student.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      alert('Failed to download report');
+    }
+  };
+
+  // Get unique subjects from attendance records
+  const getUniqueSubjects = () => {
+    const subjects = new Set<string>();
+    attendanceRecords.forEach(r => {
+      const subjectName = r.attendance_sessions?.subjects?.subject_name;
+      if (subjectName) subjects.add(subjectName);
+    });
+    return Array.from(subjects);
+  };
+
+  // Filter attendance records based on current filters
+  const getFilteredAttendance = () => {
+    return attendanceRecords.filter((r) => {
+      // Month filter
+      const recordDate = new Date(r.created_at).toISOString().substring(0, 7);
+      if (recordDate !== selectedMonth) return false;
+      
+      // Subject filter
+      if (selectedSubject !== 'all') {
+        const subjectName = r.attendance_sessions?.subjects?.subject_name;
+        if (subjectName !== selectedSubject) return false;
+      }
+      
+      // Status filter
+      if (selectedStatus !== 'all' && r.status !== selectedStatus) return false;
+      
+      // Date range filter
+      if (dateRangeStart) {
+        const recordDateStr = r.created_at.split('T')[0];
+        if (recordDateStr < dateRangeStart) return false;
+      }
+      if (dateRangeEnd) {
+        const recordDateStr = r.created_at.split('T')[0];
+        if (recordDateStr > dateRangeEnd) return false;
+      }
+      
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const subjectName = r.attendance_sessions?.subjects?.subject_name?.toLowerCase() || '';
+        const className = r.attendance_sessions?.classes?.class_name?.toLowerCase() || '';
+        if (!subjectName.includes(query) && !className.includes(query)) return false;
+      }
+      
+      return true;
+    });
+  };
+
+  // Get notification icon based on type
+  const getNotificationIcon = (type: Notification['type']) => {
+    switch (type) {
+      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+      case 'success': return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'urgent': return <BellRing className="h-4 w-4 text-red-500" />;
+      default: return <Info className="h-4 w-4 text-blue-500" />;
+    }
+  };
+
+  // Get priority badge color
+  const getPriorityColor = (priority: Notification['priority']) => {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -297,10 +542,11 @@ Please keep this for your records.
       ? Math.round(((attendanceStats.present + attendanceStats.onDuty) / attendanceStats.total) * 100)
       : 0;
 
-  const filteredAttendance = attendanceRecords.filter((r) => {
-    const recordDate = new Date(r.created_at).toISOString().substring(0, 7);
-    return recordDate === selectedMonth;
-  });
+  // Use the enhanced filter function
+  const filteredAttendance = getFilteredAttendance();
+  
+  // Get unique subjects for filter dropdown
+  const uniqueSubjects = getUniqueSubjects();
 
   // Calendar helper functions
   const getCalendarDays = () => {

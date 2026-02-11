@@ -11,7 +11,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { Camera, CheckCircle, AlertCircle, QrCode, X, ZoomIn, ZoomOut } from "lucide-react"
+import { Camera, CheckCircle, AlertCircle, QrCode, X, ZoomIn, ZoomOut, MapPin, Navigation } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { supabase } from "@/lib/supabase"
 import { ResponsiveWrapper } from "@/components/responsive-wrapper"
@@ -42,6 +42,11 @@ export default function StudentAttendancePage() {
     className?: string;
     section?: string;
     remainingSeconds?: number;
+    // Geolocation fields
+    location_required?: boolean;
+    class_latitude?: number | null;
+    class_longitude?: number | null;
+    location_radius?: number;
   } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -53,9 +58,63 @@ export default function StudentAttendancePage() {
   const [zoomLevel, setZoomLevel] = useState<number>(1)
   const [maxZoom, setMaxZoom] = useState<number>(1)
   const [zoomSupported, setZoomSupported] = useState<boolean>(false)
+  const [studentLocation, setStudentLocation] = useState<{latitude: number; longitude: number} | null>(null)
+  const [locationError, setLocationError] = useState<string>("")
+  const [checkingLocation, setCheckingLocation] = useState<boolean>(false)
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const videoTrackRef = useRef<MediaStreamTrack | null>(null)
   const qrScannedRef = useRef<boolean>(false)
+
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3 // Earth's radius in meters
+    const φ1 = lat1 * Math.PI / 180
+    const φ2 = lat2 * Math.PI / 180
+    const Δφ = (lat2 - lat1) * Math.PI / 180
+    const Δλ = (lon2 - lon1) * Math.PI / 180
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+    return R * c // Distance in meters
+  }
+
+  // Get student's current location
+  const getStudentLocation = (): Promise<{latitude: number; longitude: number}> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation is not supported by your browser"))
+        return
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          })
+        },
+        (error) => {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              reject(new Error("Location permission denied. Please enable location access to mark attendance."))
+              break
+            case error.POSITION_UNAVAILABLE:
+              reject(new Error("Location information unavailable. Please try again."))
+              break
+            case error.TIMEOUT:
+              reject(new Error("Location request timed out. Please try again."))
+              break
+            default:
+              reject(new Error("Failed to get your location. Please try again."))
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      )
+    })
+  }
 
   // Track client-side mounting to prevent hydration errors
   useEffect(() => {
@@ -312,6 +371,11 @@ export default function StudentAttendancePage() {
                     date: data.session.session_date,
                     expiresAt: data.session.expires_at,
                     remainingSeconds: data.session.remaining_seconds,
+                    // Geolocation fields
+                    location_required: data.session.location_required,
+                    class_latitude: data.session.class_latitude,
+                    class_longitude: data.session.class_longitude,
+                    location_radius: data.session.location_radius,
                   }
                   
                   setSessionData(completeSessionData)
@@ -505,6 +569,11 @@ export default function StudentAttendancePage() {
         date: data.session.session_date,
         expiresAt: data.session.expires_at,
         remainingSeconds: data.session.remaining_seconds,
+        // Geolocation fields
+        location_required: data.session.location_required,
+        class_latitude: data.session.class_latitude,
+        class_longitude: data.session.class_longitude,
+        location_radius: data.session.location_radius,
       })
       
       // Initialize timer
@@ -525,6 +594,7 @@ export default function StudentAttendancePage() {
     e.preventDefault()
     setError("")
     setMessage("")
+    setLocationError("")
 
     if (!email) {
       setError("Please enter your email")
@@ -544,6 +614,52 @@ export default function StudentAttendancePage() {
     setLoading(true)
 
     try {
+      // Check location if required by the class
+      let currentLocation: {latitude: number; longitude: number} | null = null
+      
+      if (sessionData.location_required && sessionData.class_latitude && sessionData.class_longitude) {
+        console.log("📍 Location check required for this class")
+        setCheckingLocation(true)
+        setMessage("Checking your location...")
+        
+        try {
+          currentLocation = await getStudentLocation()
+          setStudentLocation(currentLocation)
+          console.log("📍 Student location:", currentLocation)
+          
+          // Calculate distance from class
+          const distance = calculateDistance(
+            currentLocation.latitude,
+            currentLocation.longitude,
+            sessionData.class_latitude,
+            sessionData.class_longitude
+          )
+          
+          const allowedRadius = sessionData.location_radius || 100
+          console.log(`📍 Distance from class: ${distance.toFixed(2)}m (allowed: ${allowedRadius}m)`)
+          
+          if (distance > allowedRadius) {
+            setLocationError(`You are ${Math.round(distance)}m away from the class. You must be within ${allowedRadius}m to mark attendance.`)
+            setError(`You are too far from the class location. Please move closer to mark attendance.`)
+            setLoading(false)
+            setCheckingLocation(false)
+            return
+          }
+          
+          console.log("✅ Location verified - student is within allowed radius")
+          setMessage("Location verified!")
+        } catch (locError) {
+          const locErrorMsg = locError instanceof Error ? locError.message : "Failed to get location"
+          setLocationError(locErrorMsg)
+          setError(locErrorMsg)
+          setLoading(false)
+          setCheckingLocation(false)
+          return
+        } finally {
+          setCheckingLocation(false)
+        }
+      }
+
       const response = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: {
@@ -552,7 +668,10 @@ export default function StudentAttendancePage() {
         body: JSON.stringify({ 
           email,
           sessionId: sessionData.sessionId,
-          sessionCode: sessionData.sessionCode
+          sessionCode: sessionData.sessionCode,
+          // Include location data if available
+          studentLatitude: currentLocation?.latitude,
+          studentLongitude: currentLocation?.longitude,
         }),
       })
 
@@ -573,6 +692,9 @@ export default function StudentAttendancePage() {
         otp: data.otp,
         email: email.toLowerCase(),
         expiresAt: Date.now() + 2 * 60 * 1000, // 2 minutes from now
+        // Store location for later verification
+        studentLatitude: currentLocation?.latitude,
+        studentLongitude: currentLocation?.longitude,
       }
       localStorage.setItem("attendance_otp", JSON.stringify(otpData))
       console.log("💾 OTP stored in localStorage:", otpData)
@@ -677,8 +799,29 @@ export default function StudentAttendancePage() {
       localStorage.removeItem("attendance_otp")
       console.log("🗑️ OTP removed from localStorage")
 
+      // Get stored location if available
+      const storedOtpData = localStorage.getItem("attendance_otp_location")
+      let locationData: {studentLatitude?: number; studentLongitude?: number} = {}
+      if (storedOtpData) {
+        try {
+          const parsed = JSON.parse(storedOtpData)
+          locationData = {
+            studentLatitude: parsed.studentLatitude,
+            studentLongitude: parsed.studentLongitude
+          }
+        } catch (e) {
+          console.log("Could not parse stored location data")
+        }
+      }
+      
+      // Use studentLocation state if available (from OTP step)
+      if (studentLocation) {
+        locationData.studentLatitude = studentLocation.latitude
+        locationData.studentLongitude = studentLocation.longitude
+      }
+
       // Now mark attendance using email (backend will create/find user)
-      console.log("📝 Marking attendance...")
+      console.log("📝 Marking attendance...", locationData)
       const attendanceResponse = await fetch("/api/attendance/mark", {
         method: "POST",
         headers: {
@@ -688,6 +831,8 @@ export default function StudentAttendancePage() {
           email: email.toLowerCase(),
           sessionId: sessionData.sessionId,
           sessionCode: sessionData.sessionCode,
+          studentLatitude: locationData.studentLatitude,
+          studentLongitude: locationData.studentLongitude,
         }),
       })
 
@@ -1053,6 +1198,34 @@ export default function StudentAttendancePage() {
                           </p>
                         )}
                       </div>
+                      
+                      {/* Location Requirement Notice */}
+                      {sessionData.location_required && (
+                        <div className="p-3 rounded-md border bg-amber-50 border-amber-200">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-5 w-5 text-amber-600" />
+                            <div>
+                              <p className="text-sm font-medium text-amber-800">
+                                📍 Location Verification Required
+                              </p>
+                              <p className="text-xs text-amber-700 mt-1">
+                                You must be within {sessionData.location_radius || 100}m of the classroom to mark attendance.
+                              </p>
+                            </div>
+                          </div>
+                          {checkingLocation && (
+                            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                              <Navigation className="h-3 w-3 animate-pulse" />
+                              Checking your location...
+                            </p>
+                          )}
+                          {locationError && (
+                            <p className="text-xs text-red-600 mt-2">
+                              ❌ {locationError}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, BookOpen, GraduationCap, Link2, Plus, Pencil, Trash2, LogOut, LayoutDashboard, Eye, Upload, Download, Calendar, RefreshCw, Clock, X, AlertCircle } from "lucide-react"
+import { Users, BookOpen, GraduationCap, Link2, Plus, Pencil, Trash2, LogOut, LayoutDashboard, Eye, Upload, Download, Calendar, RefreshCw, Clock, X, AlertCircle, MapPin, Crosshair } from "lucide-react"
 
 interface User {
   id: string
@@ -47,6 +47,9 @@ interface Class {
   total_students: number
   department?: string
   class_email?: string
+  latitude?: number | null
+  longitude?: number | null
+  location_radius?: number
 }
 
 interface Subject {
@@ -591,6 +594,9 @@ export default function AdminManagementPage() {
       year: formData.get("year") ? parseInt(formData.get("year") as string) : null,
       department: department,
       class_email: formData.get("class_email") || null,
+      latitude: formData.get("latitude") ? parseFloat(formData.get("latitude") as string) : null,
+      longitude: formData.get("longitude") ? parseFloat(formData.get("longitude") as string) : null,
+      location_radius: formData.get("location_radius") ? parseInt(formData.get("location_radius") as string) : 100,
     }
 
     try {
@@ -1149,13 +1155,14 @@ export default function AdminManagementPage() {
                     <TableHead>Year</TableHead>
                     <TableHead>Department</TableHead>
                     <TableHead>Class Email</TableHead>
+                    <TableHead>Location</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {classes.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No classes found. Click &quot;Add Class&quot; to create one.
                       </TableCell>
                     </TableRow>
@@ -1167,6 +1174,16 @@ export default function AdminManagementPage() {
                         <TableCell>{cls.year || "-"}</TableCell>
                         <TableCell>{cls.department || "General"}</TableCell>
                         <TableCell className="text-sm font-mono">{cls.class_email || "-"}</TableCell>
+                        <TableCell>
+                          {cls.latitude && cls.longitude ? (
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                              <MapPin className="h-3 w-3" />
+                              {cls.location_radius || 100}m
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
@@ -2075,6 +2092,90 @@ export default function AdminManagementPage() {
                       <p className="text-xs text-muted-foreground mt-1">
                         QR codes and session info will be sent to this email for all teachers in this class
                       </p>
+                    </div>
+                    
+                    {/* Geolocation Section */}
+                    <div className="border-t pt-4 mt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <Label className="text-sm font-medium">Location Restriction (Optional)</Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        If set, students can only mark attendance when they are near this location.
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <Label htmlFor="latitude">Latitude</Label>
+                            <Input
+                              id="latitude"
+                              name="latitude"
+                              type="number"
+                              step="any"
+                              defaultValue={(selectedItem as Class)?.latitude ?? ""}
+                              placeholder="e.g., 10.9027"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <Label htmlFor="longitude">Longitude</Label>
+                            <Input
+                              id="longitude"
+                              name="longitude"
+                              type="number"
+                              step="any"
+                              defaultValue={(selectedItem as Class)?.longitude ?? ""}
+                              placeholder="e.g., 76.8986"
+                            />
+                          </div>
+                        </div>
+                        
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            if (navigator.geolocation) {
+                              navigator.geolocation.getCurrentPosition(
+                                (position) => {
+                                  const latInput = document.getElementById("latitude") as HTMLInputElement
+                                  const lngInput = document.getElementById("longitude") as HTMLInputElement
+                                  if (latInput && lngInput) {
+                                    latInput.value = position.coords.latitude.toFixed(8)
+                                    lngInput.value = position.coords.longitude.toFixed(8)
+                                  }
+                                },
+                                (error) => {
+                                  alert("Could not get location: " + error.message)
+                                },
+                                { enableHighAccuracy: true }
+                              )
+                            } else {
+                              alert("Geolocation is not supported by your browser")
+                            }
+                          }}
+                        >
+                          <Crosshair className="h-4 w-4 mr-2" />
+                          Use Current Location
+                        </Button>
+                        
+                        <div>
+                          <Label htmlFor="location_radius">Allowed Radius (meters)</Label>
+                          <Input
+                            id="location_radius"
+                            name="location_radius"
+                            type="number"
+                            min="10"
+                            max="1000"
+                            defaultValue={(selectedItem as Class)?.location_radius ?? 100}
+                            placeholder="100"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Students must be within this distance from the class location (default: 100m)
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <DialogFooter className="mt-6">
