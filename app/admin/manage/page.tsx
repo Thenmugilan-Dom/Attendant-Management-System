@@ -2176,6 +2176,28 @@ export default function AdminManagementPage() {
                           Use Current Location
                         </Button>
                         
+                        {/* Remove Location Button - only show if location is set */}
+                        {((selectedItem as Class)?.latitude || (selectedItem as Class)?.longitude) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                            onClick={() => {
+                              const latInput = document.getElementById("latitude") as HTMLInputElement
+                              const lngInput = document.getElementById("longitude") as HTMLInputElement
+                              if (latInput && lngInput) {
+                                latInput.value = ""
+                                lngInput.value = ""
+                              }
+                              alert("Location cleared. Click Save to apply changes.")
+                            }}
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Remove Location Restriction
+                          </Button>
+                        )}
+                        
                         <div>
                           <Label htmlFor="location_radius">Allowed Radius (meters)</Label>
                           <Input

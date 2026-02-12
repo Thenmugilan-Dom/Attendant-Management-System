@@ -61,6 +61,7 @@ export default function StudentAttendancePage() {
   const [studentLocation, setStudentLocation] = useState<{latitude: number; longitude: number} | null>(null)
   const [locationError, setLocationError] = useState<string>("")
   const [checkingLocation, setCheckingLocation] = useState<boolean>(false)
+  const [locationVerified, setLocationVerified] = useState<boolean>(false)
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const videoTrackRef = useRef<MediaStreamTrack | null>(null)
   const qrScannedRef = useRef<boolean>(false)
@@ -321,6 +322,7 @@ export default function StudentAttendancePage() {
           
           try {
             let sessionCode = ""
+            let scannedData: any = null
             
             // Handle both URL format (new) and JSON format (legacy)
             if (decodedText.startsWith("http")) {
@@ -331,7 +333,7 @@ export default function StudentAttendancePage() {
               console.log("🔍 Extracted session code:", sessionCode)
             } else {
               // QR code contains JSON (legacy format)
-              const scannedData = JSON.parse(decodedText)
+              scannedData = JSON.parse(decodedText)
               console.log("📱 QR Code scanned (JSON format):", scannedData)
               sessionCode = scannedData.sessionCode || scannedData.session_code || ""
             }
@@ -590,11 +592,73 @@ export default function StudentAttendancePage() {
     }
   }
 
+  // Separate function to verify location
+  const handleVerifyLocation = async () => {
+    setError("")
+    setMessage("")
+    setLocationError("")
+    
+    if (!sessionData) {
+      setError("No session data found. Please scan QR code first.")
+      return
+    }
+
+    const hasLocationRestriction = sessionData.location_required && 
+                                    sessionData.class_latitude !== null && 
+                                    sessionData.class_latitude !== undefined && 
+                                    sessionData.class_longitude !== null && 
+                                    sessionData.class_longitude !== undefined
+
+    if (!hasLocationRestriction) {
+      // No location restriction, mark as verified
+      setLocationVerified(true)
+      setMessage("No location restriction for this class.")
+      return
+    }
+
+    setCheckingLocation(true)
+    setMessage("Checking your location...")
+
+    try {
+      const currentLocation = await getStudentLocation()
+      setStudentLocation(currentLocation)
+      console.log("📍 Student location:", currentLocation)
+      
+      // Calculate distance from class
+      const distance = calculateDistance(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        sessionData.class_latitude!,
+        sessionData.class_longitude!
+      )
+      
+      const allowedRadius = sessionData.location_radius || 100
+      console.log(`📍 Distance from class: ${distance.toFixed(2)}m (allowed: ${allowedRadius}m)`)
+      
+      if (distance > allowedRadius) {
+        setLocationError(`You are ${Math.round(distance)}m away from the class. You must be within ${allowedRadius}m to mark attendance.`)
+        setError(`You are too far from the class location. Please move closer to mark attendance.`)
+        setLocationVerified(false)
+        return
+      }
+      
+      console.log("✅ Location verified - student is within allowed radius")
+      setLocationVerified(true)
+      setMessage(`Location verified! You are ${Math.round(distance)}m from the classroom.`)
+    } catch (locError) {
+      const locErrorMsg = locError instanceof Error ? locError.message : "Failed to get location"
+      setLocationError(locErrorMsg)
+      setError(locErrorMsg)
+      setLocationVerified(false)
+    } finally {
+      setCheckingLocation(false)
+    }
+  }
+
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setMessage("")
-    setLocationError("")
 
     if (!email) {
       setError("Please enter your email")
@@ -611,70 +675,21 @@ export default function StudentAttendancePage() {
       return
     }
 
+    // Check if location verification is required but not done
+    const hasLocationRestriction = sessionData.location_required && 
+                                    sessionData.class_latitude !== null && 
+                                    sessionData.class_latitude !== undefined && 
+                                    sessionData.class_longitude !== null && 
+                                    sessionData.class_longitude !== undefined
+
+    if (hasLocationRestriction && !locationVerified) {
+      setError("Please verify your location first before sending OTP.")
+      return
+    }
+
     setLoading(true)
 
     try {
-      // Check location if required by the class (use explicit null checks to handle 0 coordinates)
-      let currentLocation: {latitude: number; longitude: number} | null = null
-      
-      console.log("📍 Session location settings:", {
-        location_required: sessionData.location_required,
-        class_latitude: sessionData.class_latitude,
-        class_longitude: sessionData.class_longitude,
-        location_radius: sessionData.location_radius
-      })
-      
-      const hasLocationRestriction = sessionData.location_required && 
-                                      sessionData.class_latitude !== null && 
-                                      sessionData.class_latitude !== undefined && 
-                                      sessionData.class_longitude !== null && 
-                                      sessionData.class_longitude !== undefined
-      
-      if (hasLocationRestriction) {
-        console.log("📍 Location check required for this class")
-        setCheckingLocation(true)
-        setMessage("Checking your location...")
-        
-        try {
-          currentLocation = await getStudentLocation()
-          setStudentLocation(currentLocation)
-          console.log("📍 Student location:", currentLocation)
-          
-          // Calculate distance from class
-          const distance = calculateDistance(
-            currentLocation.latitude,
-            currentLocation.longitude,
-            sessionData.class_latitude!,
-            sessionData.class_longitude!
-          )
-          
-          const allowedRadius = sessionData.location_radius || 100
-          console.log(`📍 Distance from class: ${distance.toFixed(2)}m (allowed: ${allowedRadius}m)`)
-          
-          if (distance > allowedRadius) {
-            setLocationError(`You are ${Math.round(distance)}m away from the class. You must be within ${allowedRadius}m to mark attendance.`)
-            setError(`You are too far from the class location. Please move closer to mark attendance.`)
-            setLoading(false)
-            setCheckingLocation(false)
-            return
-          }
-          
-          console.log("✅ Location verified - student is within allowed radius")
-          setMessage("Location verified!")
-        } catch (locError) {
-          const locErrorMsg = locError instanceof Error ? locError.message : "Failed to get location"
-          setLocationError(locErrorMsg)
-          setError(locErrorMsg)
-          setLoading(false)
-          setCheckingLocation(false)
-          return
-        } finally {
-          setCheckingLocation(false)
-        }
-      } else {
-        console.log("📍 No location restriction for this class")
-      }
-
       const response = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: {
@@ -685,8 +700,8 @@ export default function StudentAttendancePage() {
           sessionId: sessionData.sessionId,
           sessionCode: sessionData.sessionCode,
           // Include location data if available
-          studentLatitude: currentLocation?.latitude,
-          studentLongitude: currentLocation?.longitude,
+          studentLatitude: studentLocation?.latitude,
+          studentLongitude: studentLocation?.longitude,
         }),
       })
 
@@ -708,8 +723,8 @@ export default function StudentAttendancePage() {
         email: email.toLowerCase(),
         expiresAt: Date.now() + 2 * 60 * 1000, // 2 minutes from now
         // Store location for later verification
-        studentLatitude: currentLocation?.latitude,
-        studentLongitude: currentLocation?.longitude,
+        studentLatitude: studentLocation?.latitude,
+        studentLongitude: studentLocation?.longitude,
       }
       localStorage.setItem("attendance_otp", JSON.stringify(otpData))
       console.log("💾 OTP stored in localStorage:", otpData)
@@ -1354,10 +1369,33 @@ export default function StudentAttendancePage() {
                     </div>
                   )}
 
+                  {/* Location Verification Button - Show when location is required */}
+                  {sessionData?.location_required && sessionData?.class_latitude !== null && sessionData?.class_latitude !== undefined && (
+                    <Field>
+                      {!locationVerified ? (
+                        <Button 
+                          type="button"
+                          onClick={handleVerifyLocation}
+                          disabled={checkingLocation || sessionExpired}
+                          className="w-full touch-target ripple bg-amber-600 hover:bg-amber-700"
+                        >
+                          <MapPin className="mr-2 h-4 w-4" />
+                          {checkingLocation ? "Verifying Location..." : "Verify Location"}
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <p className="text-sm text-green-600 font-medium">✅ Location Verified</p>
+                        </div>
+                      )}
+                    </Field>
+                  )}
+
                   <Field>
+                    {/* Send OTP Button */}
                     <Button 
                       type="submit" 
-                      disabled={loading || sessionExpired} 
+                      disabled={loading || sessionExpired || (sessionData?.location_required && sessionData?.class_latitude !== null && sessionData?.class_latitude !== undefined && !locationVerified)} 
                       className="w-full touch-target ripple"
                     >
                       {loading ? "Sending..." : sessionExpired ? "Session Expired" : "Send OTP"}

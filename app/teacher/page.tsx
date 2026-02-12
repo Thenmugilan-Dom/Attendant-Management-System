@@ -54,6 +54,7 @@ interface Assignment {
   subject_id: string
   class_name: string
   section: string
+  year?: number | null
   subject_name: string
   subject_code: string
   // Location data for geofencing
@@ -550,6 +551,7 @@ export default function TeacherDashboard() {
             id,
             class_name,
             section,
+            year,
             latitude,
             longitude,
             location_radius
@@ -573,6 +575,7 @@ export default function TeacherDashboard() {
           subject_id: assignment.subject_id,
           class_name: assignment.classes?.class_name || '',
           section: assignment.classes?.section || '',
+          year: assignment.classes?.year,
           subject_name: assignment.subjects?.subject_name || '',
           subject_code: assignment.subjects?.subject_code || '',
           day_order: assignment.day_order,
@@ -1278,7 +1281,7 @@ export default function TeacherDashboard() {
                             const hasLocation = assignment?.latitude !== null && assignment?.latitude !== undefined
                             return (
                               <option key={classId} value={classId}>
-                                {assignment?.class_name} {assignment?.section}{hasLocation ? ` 📍[${assignment?.location_radius || 100}m]` : ''}
+                                {assignment?.class_name} {assignment?.section}{assignment?.year ? ` - Year ${assignment.year}` : ''}{hasLocation ? ' 📍' : ''}
                               </option>
                             )
                           })}
