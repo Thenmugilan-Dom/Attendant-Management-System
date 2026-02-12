@@ -1281,7 +1281,7 @@ export default function TeacherDashboard() {
                             const hasLocation = assignment?.latitude !== null && assignment?.latitude !== undefined
                             return (
                               <option key={classId} value={classId}>
-                                {assignment?.class_name} {assignment?.section}{assignment?.year ? ` - Year ${assignment.year}` : ''}{hasLocation ? ' 📍' : ''}
+                                {assignment?.class_name}{assignment?.section ? ` ${assignment.section}` : ''}{assignment?.year ? ` (Year ${assignment.year})` : ''}{hasLocation ? '' : ''}
                               </option>
                             )
                           })}
