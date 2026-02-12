@@ -56,6 +56,10 @@ interface Assignment {
   section: string
   subject_name: string
   subject_code: string
+  // Location data for geofencing
+  latitude?: number | null
+  longitude?: number | null
+  location_radius?: number
 }
 
 interface Student {
@@ -545,7 +549,10 @@ export default function TeacherDashboard() {
           classes (
             id,
             class_name,
-            section
+            section,
+            latitude,
+            longitude,
+            location_radius
           ),
           subjects (
             id,
@@ -572,6 +579,10 @@ export default function TeacherDashboard() {
           start_time: assignment.start_time,
           end_time: assignment.end_time,
           auto_session_enabled: assignment.auto_session_enabled,
+          // Location data
+          latitude: assignment.classes?.latitude,
+          longitude: assignment.classes?.longitude,
+          location_radius: assignment.classes?.location_radius || 100,
         }))
         setAssignments(formattedAssignments)
         console.log("✅ Loaded assignments:", formattedAssignments)
@@ -1261,12 +1272,13 @@ export default function TeacherDashboard() {
                           onChange={(e) => setSelectedClassId(e.target.value)}
                         >
                           <option value="">-- Choose a class --</option>
-                          {/* Get unique classes */}
+                          {/* Get unique classes with location indicator */}
                           {Array.from(new Set(assignments.map(a => a.class_id))).map(classId => {
                             const assignment = assignments.find(a => a.class_id === classId)
+                            const hasLocation = assignment?.latitude !== null && assignment?.latitude !== undefined
                             return (
                               <option key={classId} value={classId}>
-                                {assignment?.class_name} {assignment?.section}
+                                {assignment?.class_name} {assignment?.section}{hasLocation ? ` 📍[${assignment?.location_radius || 100}m]` : ''}
                               </option>
                             )
                           })}
@@ -1294,6 +1306,25 @@ export default function TeacherDashboard() {
                           }
                         </select>
                       </div>
+
+                      {/* Location restriction notice */}
+                      {selectedClassId && (() => {
+                        const selectedAssignment = assignments.find(a => a.class_id === selectedClassId)
+                        const hasLocation = selectedAssignment?.latitude !== null && selectedAssignment?.latitude !== undefined
+                        if (hasLocation) {
+                          return (
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                              <p className="text-sm text-blue-700 flex items-center gap-2">
+                                <span className="text-lg">\ud83d\udccd</span>
+                                <span>
+                                  <strong>Location restriction active:</strong> Students must be within {selectedAssignment?.location_radius || 100}m of the classroom to mark attendance.
+                                </span>
+                              </p>
+                            </div>
+                          )
+                        }
+                        return null
+                      })()}
 
                       <Button
                         className="w-full text-sm sm:text-base"
