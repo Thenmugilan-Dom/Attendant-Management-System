@@ -440,8 +440,29 @@ export default function StudentDashboard() {
     }
   };
 
-  const downloadODCertificate = (request: ODRequest) => {
-    // Create a simple text document for OD certificate
+  const downloadODCertificate = async (request: ODRequest) => {
+    // Create QR code data containing certificate information
+    const certificateData = JSON.stringify({
+      studentName: student?.name,
+      studentId: student?.id,
+      email: student?.email,
+      odStartDate: request.od_start_date,
+      odEndDate: request.od_end_date,
+      reason: request.reason,
+      status: 'APPROVED',
+      issueDate: new Date().toISOString(),
+    });
+
+    // Dynamically import QR code library
+    const QRCode = require('qrcode');
+    let qrCodeDataUrl = '';
+    
+    try {
+      qrCodeDataUrl = await QRCode.toDataURL(certificateData, { width: 200 });
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+    }
+
     const startDate = new Date(request.od_start_date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -454,44 +475,206 @@ export default function StudentDashboard() {
       day: 'numeric',
     });
 
-    const certificateText = `
-════════════════════════════════════════════════════════════════
-                    ON DUTY (OD) CERTIFICATE
-════════════════════════════════════════════════════════════════
-
-Student Name: ${student?.name}
-Email: ${student?.email}
-
-OD Period:
-  From: ${startDate}
-  To: ${endDate}
-  Duration: ${request.duration_days} day${request.duration_days !== 1 ? 's' : ''}
-
-Reason for OD:
-  ${request.reason}
-
-Approval Status:
-  ✓ Teacher Approval: APPROVED
-  ✓ Admin Approval: APPROVED
-  ✓ Status: APPROVED
-
-Certificate Issue Date: ${new Date().toLocaleDateString('en-US', {
+    const issueDate = new Date().toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-    })}
+    });
 
-════════════════════════════════════════════════════════════════
-This is an electronically generated certificate.
-Please keep this for your records.
-════════════════════════════════════════════════════════════════
+    // Create enhanced HTML certificate
+    const certificateHTML = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OD Certificate</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #f5f5f5;
+        }
+        .certificate {
+            width: 900px;
+            background: white;
+            padding: 40px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            border: 3px solid #1e3a8a;
+            border-radius: 10px;
+            margin: 20px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #1e3a8a;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            color: #1e3a8a;
+            font-size: 32px;
+            letter-spacing: 2px;
+        }
+        .header p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .details {
+            gap: 20px;
+        }
+        .detail-row {
+            margin-bottom: 15px;
+        }
+        .detail-label {
+            font-weight: bold;
+            color: #1e3a8a;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .detail-value {
+            color: #333;
+            font-size: 16px;
+            margin-top: 5px;
+            padding: 8px;
+            background: #f9f9f9;
+            border-left: 3px solid #1e3a8a;
+            padding-left: 12px;
+        }
+        .qr-section {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #ddd;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .qr-section img {
+            width: 200px;
+            height: 200px;
+            margin-bottom: 10px;
+        }
+        .qr-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .footer {
+            text-align: center;
+            border-top: 3px solid #1e3a8a;
+            padding-top: 20px;
+            color: #666;
+            font-size: 12px;
+        }
+        .approval-status {
+            background: #d1fae5;
+            border: 2px solid #10b981;
+            color: #065f46;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .reason-box {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            border-left: 4px solid #1e3a8a;
+        }
+        @media print {
+            body {
+                background: white;
+            }
+            .certificate {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="certificate">
+        <div class="header">
+            <h1>ON DUTY (OD) CERTIFICATE</h1>
+            <p>Official Certificate of Leave</p>
+        </div>
+
+        <div class="approval-status">
+            ✓ APPROVED - Valid Certificate
+        </div>
+
+        <div class="content">
+            <div class="details">
+                <div class="detail-row">
+                    <div class="detail-label">Student Name</div>
+                    <div class="detail-value">${student?.name || 'N/A'}</div>
+                </div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">Email Address</div>
+                    <div class="detail-value">${student?.email || 'N/A'}</div>
+                </div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">OD Start Date</div>
+                    <div class="detail-value">${startDate}</div>
+                </div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">OD End Date</div>
+                    <div class="detail-value">${endDate}</div>
+                </div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">Duration</div>
+                    <div class="detail-value">${request.duration_days} day${request.duration_days !== 1 ? 's' : ''}</div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Reason for OD</div>
+                    <div class="reason-box">${request.reason || 'N/A'}</div>
+                </div>
+            </div>
+
+            <div class="qr-section">
+                ${qrCodeDataUrl ? `<img src="${qrCodeDataUrl}" alt="Certificate QR Code">` : '<p style="color: #ccc; margin: 0;">QR Code</p>'}
+                <div class="qr-label">Scan for Verification</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p style="margin: 5px 0;">Certificate Issue Date: <strong>${issueDate}</strong></p>
+            <p style="margin: 5px 0;">This is an electronically generated certificate and is valid for all official purposes.</p>
+            <p style="margin: 10px 0; font-style: italic; color: #999;">Document ID: OD-${request.id.substring(0, 8).toUpperCase()}</p>
+        </div>
+    </div>
+</body>
+</html>
     `;
 
-    // Create a blob and trigger download
+    // Create blob and download HTML file
     const element = document.createElement('a');
-    const file = new Blob([certificateText], { type: 'text/plain' });
+    const file = new Blob([certificateHTML], { type: 'text/html' });
     element.href = URL.createObjectURL(file);
-    element.download = `OD_Certificate_${student?.name?.replace(/\s+/g, '_')}_${startDate.replace(/\s+/g, '_')}.txt`;
+    element.download = `OD_Certificate_${student?.name?.replace(/\s+/g, '_')}_${startDate.replace(/\s+/g, '_')}.html`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
