@@ -11,7 +11,7 @@ function generateOTP(): string {
 // Validate email domain
 function isValidEmail(email: string): boolean {
   const emailLower = email.toLowerCase()
-  return emailLower.endsWith('@kprcas.ac.in') || emailLower.endsWith('@gmail.com')
+  return emailLower.endsWith('@kprcas.ac.in')
 }
 
 export async function POST(request: NextRequest) {
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (!isValidEmail(email)) {
       console.error('❌ Email validation failed: Invalid domain')
       return NextResponse.json(
-        { error: 'Only @kprcas.ac.in and @gmail.com emails are allowed' },
+        { error: 'Only @kprcas.ac.in emails are allowed' },
         { status: 400 }
       )
     }

@@ -451,7 +451,7 @@ export default function StudentAttendancePage() {
 
   const isValidEmail = (email: string): boolean => {
     const emailLower = email.toLowerCase()
-    return emailLower.endsWith("@kprcas.ac.in") || emailLower.endsWith("@gmail.com")
+    return emailLower.endsWith("@kprcas.ac.in")
   }
 
   const startScanning = () => {
@@ -666,7 +666,7 @@ export default function StudentAttendancePage() {
     }
 
     if (!isValidEmail(email)) {
-      setError("Only @kprcas.ac.in and @gmail.com emails are allowed")
+      setError("Only @kprcas.ac.in emails are allowed")
       return
     }
 
@@ -1351,7 +1351,7 @@ export default function StudentAttendancePage() {
                       disabled={loading}
                     />
                     <FieldDescription>
-                      Only @kprcas.ac.in and @gmail.com emails are allowed
+                      Only @kprcas.ac.in emails are allowed
                     </FieldDescription>
                   </Field>
 
