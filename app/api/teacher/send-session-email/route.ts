@@ -4,6 +4,9 @@ import nodemailer from 'nodemailer'
 import QRCode from 'qrcode'
 
 export async function POST(request: NextRequest) {
+  const apiStart = Date.now()
+  console.log('📬 Email API request started at:', new Date().toISOString())
+  
   try {
     // Check Gmail credentials first
     if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
@@ -130,23 +133,42 @@ export async function POST(request: NextRequest) {
     console.log('📧 Preparing to send email to:', teacher.email)
     console.log('🎯 Using Gmail account:', process.env.GMAIL_USER)
 
+    // Create transporter with optimized settings for immediate delivery
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
-      secure: false,
+      secure: false, // Use STARTTLS
       auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
       },
-      connectionTimeout: 30000, // 30 seconds (increased from 10)
-      greetingTimeout: 30000,   // 30 seconds (increased from 10)
-      socketTimeout: 45000,      // 45 seconds (increased from 15)
-      pool: true,
+      connectionTimeout: 15000,  // 15 seconds (reduced for faster failure detection)
+      greetingTimeout: 10000,    // 10 seconds
+      socketTimeout: 20000,      // 20 seconds
+      pool: false,               // Disable pooling for immediate fresh connections
       maxConnections: 1,
-      maxMessages: 100,
-      rateDelta: 1000,
-      rateLimit: 5,
-    })
+      logger: false,              // Disable verbose logging for speed
+      debug: false,
+    } as any)
+
+    // Verify connection before sending for faster error detection
+    try {
+      console.log('🔌 Verifying SMTP connection...')
+      const verifyStart = Date.now()
+      await transporter.verify()
+      console.log(`✅ SMTP connection verified in ${Date.now() - verifyStart}ms`)
+    } catch (verifyError) {
+      console.error('❌ SMTP verification failed:', verifyError)
+      transporter.close()
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Email server connection failed',
+          details: verifyError instanceof Error ? verifyError.message : 'Unable to connect to email server'
+        },
+        { status: 503 }
+      )
+    }
 
     // Email HTML template
     const htmlTemplate = `<!DOCTYPE html>
@@ -286,31 +308,40 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      const sendStart = Date.now()
       console.log('🚀 Sending email with options:', {
         from: mailOptions.from,
         to: mailOptions.to,
         subject: mailOptions.subject
       })
       
-      // Retry logic: try up to 3 times
+      // Retry logic: try up to 2 times (reduced from 3 for faster processing)
       let lastError: any = null
       let attempts = 0
-      const maxAttempts = 3
+      const maxAttempts = 2
+      let attemptStart = 0
       
       while (attempts < maxAttempts) {
         try {
           attempts++
+          attemptStart = Date.now()
           console.log(`📤 Email send attempt ${attempts}/${maxAttempts}...`)
           
           const info = await transporter.sendMail(mailOptions)
+          const attemptDuration = Date.now() - attemptStart
+          const totalDuration = Date.now() - sendStart
           
-          console.log('✅ Session email sent successfully!')
+          console.log(`✅ Session email sent successfully in ${attemptDuration}ms (total: ${totalDuration}ms)`)
           console.log('📧 Email ID:', info.messageId)
           console.log('📨 To:', mailOptions.to)
           console.log('🔄 Attempts needed:', attempts)
           if (classData?.class_email) {
             console.log('📧 Class email:', classData.class_email)
           }
+
+          // Close transporter immediately after successful send
+          transporter.close()
+          console.log('🔒 SMTP connection closed')
 
           return NextResponse.json({
             success: true,
@@ -320,22 +351,29 @@ export async function POST(request: NextRequest) {
             session_code: session.session_code,
             messageId: info.messageId,
             recipients_count: recipients.length,
-            attempts: attempts
+            attempts: attempts,
+            duration_ms: totalDuration
           })
         } catch (attemptError) {
           lastError = attemptError
-          console.error(`❌ Attempt ${attempts} failed:`, attemptError instanceof Error ? attemptError.message : 'Unknown error')
+          const attemptDuration = Date.now() - attemptStart
+          console.error(`❌ Attempt ${attempts} failed after ${attemptDuration}ms:`, attemptError instanceof Error ? attemptError.message : 'Unknown error')
           
           if (attempts < maxAttempts) {
-            // Wait 2 seconds before retry
-            console.log(`⏳ Waiting 2 seconds before retry...`)
-            await new Promise(resolve => setTimeout(resolve, 2000))
+            // Wait 1 second before retry (reduced from 2 seconds)
+            console.log(`⏳ Waiting 1 second before retry...`)
+            await new Promise(resolve => setTimeout(resolve, 1000))
           }
         }
       }
       
+      // All attempts failed - close transporter
+      transporter.close()
+      console.log('🔒 SMTP connection closed (after failures)')
+      
       // All attempts failed
-      console.error('❌ All email send attempts failed')
+      const totalDuration = Date.now() - sendStart
+      console.error(`❌ All email send attempts failed (total time: ${totalDuration}ms)`)
       console.error('Last error:', {
         message: lastError instanceof Error ? lastError.message : 'Unknown error',
         code: lastError instanceof Error && 'code' in lastError ? (lastError as any).code : undefined
@@ -344,14 +382,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           success: false,
-          error: 'Failed to send email after 3 attempts',
+          error: `Failed to send email after ${maxAttempts} attempts`,
           details: lastError instanceof Error ? lastError.message : 'Unknown error',
           teacher_email: teacher.email,
-          attempts: maxAttempts
+          attempts: maxAttempts,
+          duration_ms: totalDuration
         },
         { status: 500 }
       )
     } catch (emailError) {
+      // Close transporter on unexpected error
+      transporter.close()
+      console.log('🔒 SMTP connection closed (unexpected error)')
+      
       console.error('❌ Unexpected error sending email:', emailError)
       console.error('Error details:', {
         message: emailError instanceof Error ? emailError.message : 'Unknown error',

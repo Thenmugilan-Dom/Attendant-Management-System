@@ -479,6 +479,8 @@ export default function TeacherDashboard() {
 
             // Send QR code email
             try {
+              const emailStartTime = Date.now()
+              
               const emailResponse = await fetch("/api/teacher/send-session-email", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -489,12 +491,15 @@ export default function TeacherDashboard() {
               })
 
               const emailResult = await emailResponse.json()
+              const emailDuration = ((Date.now() - emailStartTime) / 1000).toFixed(2)
+              
               if (emailResult.success) {
-                console.log("✅ QR code email sent for auto-started session")
+                console.log(`✅ QR code email sent for auto-started session in ${emailDuration}s`)
                 // Show success notification to user
-                alert(`🔔 Auto-Session Started!\n\n✓ Class: ${session.class_name} ${session.section}\n✓ Subject: ${session.subject_code}\n✓ Session Code: ${newSession.session_code}\n\n📧 QR code email sent successfully to:\n${emailResult.teacher_email}\n\nSession is active now!`)
+                const emailTime = emailResult.duration_ms ? ` (${emailResult.duration_ms}ms)` : ''
+                alert(`🔔 Auto-Session Started!\n\n✓ Class: ${session.class_name} ${session.section}\n✓ Subject: ${session.subject_code}\n✓ Session Code: ${newSession.session_code}\n\n📧 QR code email sent successfully${emailTime}\n✓ Delivery time: ${emailDuration}s\n\nSession is active now!`)
               } else {
-                console.warn("⚠️ Email send failed for auto-started session:", emailResult)
+                console.warn(`⚠️ Email send failed for auto-started session (${emailDuration}s):`, emailResult)
                 // Show warning notification to user
                 alert(`🔔 Auto-Session Started!\n\n✓ Class: ${session.class_name} ${session.section}\n✓ Subject: ${session.subject_code}\n✓ Session Code: ${newSession.session_code}\n\n⚠️ Email failed: ${emailResult.error || 'Unknown error'}\n\nSession is active. Please show QR code on screen.`)
               }
@@ -781,6 +786,8 @@ export default function TeacherDashboard() {
       // Send QR code email to teacher
       try {
         console.log("📧 Sending QR code email to teacher...")
+        const emailStartTime = Date.now()
+        
         const emailResponse = await fetch("/api/teacher/send-session-email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -791,15 +798,18 @@ export default function TeacherDashboard() {
         })
 
         const emailResult = await emailResponse.json()
+        const emailDuration = ((Date.now() - emailStartTime) / 1000).toFixed(2)
         console.log("📨 Email API Response:", emailResult)
+        console.log(`⏱️ Email process took ${emailDuration} seconds`)
         
         if (emailResult.success) {
           console.log("✅ QR code email sent successfully")
           const recipients = emailResult.recipients_count > 1 ? `${user.email} and class email` : user.email
-          alert(`✅ Session started successfully!\n\n📧 QR code email sent to:\n${recipients}\n\n✓ Session Code: ${session.session_code}\n✓ Message ID: ${emailResult.messageId || 'Processing'}\n\nShow the QR code on screen to students.`)
+          const emailTime = emailResult.duration_ms ? ` (${emailResult.duration_ms}ms)` : ''
+          alert(`✅ Session started successfully!\n\n📧 QR code email sent to:\n${recipients}${emailTime}\n\n✓ Session Code: ${session.session_code}\n✓ Message ID: ${emailResult.messageId || 'Processing'}\n✓ Delivery time: ${emailDuration}s\n\nShow the QR code on screen to students.`)
         } else {
           console.warn("⚠️ Email send failed:", emailResult)
-          alert(`⚠️ Session started but email failed to send!\n\n✓ Session is active\n✓ Session Code: ${session.session_code}\n\n❌ Email Error: ${emailResult.error || 'Unknown error'}\n\nPlease show the QR code on screen to students.`)
+          alert(`⚠️ Session started but email failed to send!\n\n✓ Session is active\n✓ Session Code: ${session.session_code}\n\n❌ Email Error: ${emailResult.error || 'Unknown error'}\n❌ Time spent: ${emailDuration}s\n\nPlease show the QR code on screen to students.`)
         }
       } catch (emailError) {
         console.error("❌ Error sending email:", emailError)
