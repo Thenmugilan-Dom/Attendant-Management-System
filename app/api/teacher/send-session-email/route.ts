@@ -5,6 +5,20 @@ import QRCode from 'qrcode'
 
 export async function POST(request: NextRequest) {
   try {
+    // Check Gmail credentials first
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+      console.error('❌ Gmail credentials not configured')
+      console.error('GMAIL_USER:', process.env.GMAIL_USER ? 'Set' : 'Not set')
+      console.error('GMAIL_APP_PASSWORD:', process.env.GMAIL_APP_PASSWORD ? 'Set' : 'Not set')
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Email service not configured - missing Gmail credentials. Please contact administrator.',
+        },
+        { status: 503 } // Service Unavailable
+      )
+    }
+
     const { sessionId, teacherEmail } = await request.json()
 
     if (!sessionId) {
@@ -113,21 +127,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send email using Nodemailer
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-      console.warn('⚠️ Gmail credentials not configured')
-      console.warn('GMAIL_USER:', process.env.GMAIL_USER ? 'Set' : 'Not set')
-      console.warn('GMAIL_APP_PASSWORD:', process.env.GMAIL_APP_PASSWORD ? 'Set' : 'Not set')
-      return NextResponse.json(
-        { 
-          success: false,
-          error: 'Email service not configured - missing Gmail credentials',
-          session: session
-        },
-        { status: 500 }
-      )
-    }
-
     console.log('📧 Preparing to send email to:', teacher.email)
     console.log('🎯 Using Gmail account:', process.env.GMAIL_USER)
 
@@ -139,11 +138,14 @@ export async function POST(request: NextRequest) {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
       },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+      connectionTimeout: 30000, // 30 seconds (increased from 10)
+      greetingTimeout: 30000,   // 30 seconds (increased from 10)
+      socketTimeout: 45000,      // 45 seconds (increased from 15)
       pool: true,
       maxConnections: 1,
+      maxMessages: 100,
+      rateDelta: 1000,
+      rateLimit: 5,
     })
 
     // Email HTML template
@@ -290,26 +292,67 @@ export async function POST(request: NextRequest) {
         subject: mailOptions.subject
       })
       
-      const info = await transporter.sendMail(mailOptions)
+      // Retry logic: try up to 3 times
+      let lastError: any = null
+      let attempts = 0
+      const maxAttempts = 3
       
-      console.log('✅ Session email sent successfully!')
-      console.log('📧 Email ID:', info.messageId)
-      console.log('📨 To:', mailOptions.to)
-      if (classData?.class_email) {
-        console.log('📧 Class email:', classData.class_email)
-      }
+      while (attempts < maxAttempts) {
+        try {
+          attempts++
+          console.log(`📤 Email send attempt ${attempts}/${maxAttempts}...`)
+          
+          const info = await transporter.sendMail(mailOptions)
+          
+          console.log('✅ Session email sent successfully!')
+          console.log('📧 Email ID:', info.messageId)
+          console.log('📨 To:', mailOptions.to)
+          console.log('🔄 Attempts needed:', attempts)
+          if (classData?.class_email) {
+            console.log('📧 Class email:', classData.class_email)
+          }
 
-      return NextResponse.json({
-        success: true,
-        message: 'Session email sent successfully',
-        teacher_email: teacher.email,
-        class_email: classData?.class_email || null,
-        session_code: session.session_code,
-        messageId: info.messageId,
-        recipients_count: recipients.length
+          return NextResponse.json({
+            success: true,
+            message: 'Session email sent successfully',
+            teacher_email: teacher.email,
+            class_email: classData?.class_email || null,
+            session_code: session.session_code,
+            messageId: info.messageId,
+            recipients_count: recipients.length,
+            attempts: attempts
+          })
+        } catch (attemptError) {
+          lastError = attemptError
+          console.error(`❌ Attempt ${attempts} failed:`, attemptError instanceof Error ? attemptError.message : 'Unknown error')
+          
+          if (attempts < maxAttempts) {
+            // Wait 2 seconds before retry
+            console.log(`⏳ Waiting 2 seconds before retry...`)
+            await new Promise(resolve => setTimeout(resolve, 2000))
+          }
+        }
+      }
+      
+      // All attempts failed
+      console.error('❌ All email send attempts failed')
+      console.error('Last error:', {
+        message: lastError instanceof Error ? lastError.message : 'Unknown error',
+        code: lastError instanceof Error && 'code' in lastError ? (lastError as any).code : undefined
       })
+      
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Failed to send email after 3 attempts',
+          details: lastError instanceof Error ? lastError.message : 'Unknown error',
+          teacher_email: teacher.email,
+          attempts: maxAttempts
+        },
+        { status: 500 }
+      )
     } catch (emailError) {
-      console.error('❌ Error sending email:', emailError)
+      console.error('❌ Unexpected error sending email:', emailError)
       console.error('Error details:', {
         message: emailError instanceof Error ? emailError.message : 'Unknown error',
         code: emailError instanceof Error && 'code' in emailError ? (emailError as any).code : undefined

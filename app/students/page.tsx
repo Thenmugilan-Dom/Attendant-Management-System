@@ -11,11 +11,11 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { Camera, CheckCircle, AlertCircle, QrCode, X, ZoomIn, ZoomOut, MapPin, Navigation } from "lucide-react"
+import { Camera, CheckCircle, AlertCircle, QrCode, X } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
-import { supabase } from "@/lib/supabase"
 import { ResponsiveWrapper } from "@/components/responsive-wrapper"
 import { InteractiveCard } from "@/components/interactive-card"
+import { useToast } from "@/components/toast"
 
 export default function StudentAttendancePage() {
   const [step, setStep] = useState<"scan" | "code" | "email" | "otp" | "success">("scan")
@@ -42,11 +42,6 @@ export default function StudentAttendancePage() {
     className?: string;
     section?: string;
     remainingSeconds?: number;
-    // Geolocation fields
-    location_required?: boolean;
-    class_latitude?: number | null;
-    class_longitude?: number | null;
-    location_radius?: number;
   } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -55,67 +50,9 @@ export default function StudentAttendancePage() {
   const [isMounted, setIsMounted] = useState(false)
   const [sessionExpired, setSessionExpired] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
-  const [zoomLevel, setZoomLevel] = useState<number>(1)
-  const [maxZoom, setMaxZoom] = useState<number>(1)
-  const [zoomSupported, setZoomSupported] = useState<boolean>(false)
-  const [studentLocation, setStudentLocation] = useState<{latitude: number; longitude: number} | null>(null)
-  const [locationError, setLocationError] = useState<string>("")
-  const [checkingLocation, setCheckingLocation] = useState<boolean>(false)
-  const [locationVerified, setLocationVerified] = useState<boolean>(false)
+  const [lastError, setLastError] = useState<string>("")
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
-  const videoTrackRef = useRef<MediaStreamTrack | null>(null)
-  const qrScannedRef = useRef<boolean>(false)
-
-  // Calculate distance between two coordinates using Haversine formula
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371e3 // Earth's radius in meters
-    const φ1 = lat1 * Math.PI / 180
-    const φ2 = lat2 * Math.PI / 180
-    const Δφ = (lat2 - lat1) * Math.PI / 180
-    const Δλ = (lon2 - lon1) * Math.PI / 180
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-    return R * c // Distance in meters
-  }
-
-  // Get student's current location
-  const getStudentLocation = (): Promise<{latitude: number; longitude: number}> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("Geolocation is not supported by your browser"))
-        return
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          })
-        },
-        (error) => {
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              reject(new Error("Location permission denied. Please enable location access to mark attendance."))
-              break
-            case error.POSITION_UNAVAILABLE:
-              reject(new Error("Location information unavailable. Please try again."))
-              break
-            case error.TIMEOUT:
-              reject(new Error("Location request timed out. Please try again."))
-              break
-            default:
-              reject(new Error("Failed to get your location. Please try again."))
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      )
-    })
-  }
+  const { showToast, ToastContainer } = useToast()
 
   // Track client-side mounting to prevent hydration errors
   useEffect(() => {
@@ -126,8 +63,6 @@ export default function StudentAttendancePage() {
   useEffect(() => {
     if (!sessionData || !sessionData.expiresAt) {
       console.log("❌ No session data or expiresAt found for timer:", { sessionData: !!sessionData, expiresAt: sessionData?.expiresAt })
-      setTimeRemaining(0)
-      setSessionExpired(false)
       return
     }
 
@@ -137,29 +72,28 @@ export default function StudentAttendancePage() {
       remainingSeconds: sessionData.remainingSeconds
     })
 
-    // Calculate time remaining
-    const calculateTimeRemaining = () => {
-      const now = new Date().getTime()
-      const expiresAt = new Date(sessionData.expiresAt!).getTime()
-      return Math.max(0, Math.floor((expiresAt - now) / 1000))
+    // Initialize with remaining seconds if available
+    if (sessionData.remainingSeconds !== undefined) {
+      setTimeRemaining(sessionData.remainingSeconds)
+      console.log("⏱️ Initial timer set to:", sessionData.remainingSeconds, "seconds")
     }
 
-    // Initialize with calculated time
-    const initialTime = calculateTimeRemaining()
-    setTimeRemaining(initialTime)
-    setSessionExpired(initialTime === 0)
-    console.log("⏱️ Initial timer set to:", initialTime, "seconds")
+    let hasShownExpiredToast = false // Flag to prevent repeated notifications
 
-    // Update timer every second
     const interval = setInterval(() => {
-      const remaining = calculateTimeRemaining()
-      setTimeRemaining(remaining)
+      const now = new Date().getTime()
+      const expiresAt = new Date(sessionData.expiresAt!).getTime()
+      const diff = Math.max(0, Math.floor((expiresAt - now) / 1000))
       
-      // Mark as expired when time runs out
-      if (remaining === 0) {
+      setTimeRemaining(diff)
+      console.log("⏱️ Timer update:", diff, "seconds remaining")
+
+      // Mark as expired when time runs out (show toast only once)
+      if (diff === 0 && !sessionExpired && !hasShownExpiredToast) {
         setSessionExpired(true)
+        hasShownExpiredToast = true
+        showToast("Session has expired!", "error")
         console.log("⏰ Session expired - attendance can no longer be marked")
-        clearInterval(interval) // Stop the interval once expired
       }
     }, 1000)
 
@@ -167,45 +101,7 @@ export default function StudentAttendancePage() {
       clearInterval(interval)
       console.log("🔄 Timer cleanup completed")
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionData?.sessionId, sessionData?.expiresAt])
-
-  // Poll for session updates (e.g., teacher extends time)
-  useEffect(() => {
-    if (!sessionData?.sessionId) return
-
-    const pollSession = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("attendance_sessions")
-          .select("expires_at, status")
-          .eq("id", sessionData.sessionId)
-          .single()
-
-        if (error || !data) return
-
-        // If session was ended by teacher
-        if (data.status === "completed") {
-          setSessionExpired(true)
-          return
-        }
-
-        // If expires_at changed (teacher extended time), update session data
-        if (data.expires_at && data.expires_at !== sessionData.expiresAt) {
-          console.log("⏰ Session time updated:", { old: sessionData.expiresAt, new: data.expires_at })
-          setSessionData(prev => prev ? { ...prev, expiresAt: data.expires_at } : prev)
-          setSessionExpired(false)
-        }
-      } catch (err) {
-        console.error("Poll error:", err)
-      }
-    }
-
-    // Poll every 10 seconds
-    const pollInterval = setInterval(pollSession, 10000)
-
-    return () => clearInterval(pollInterval)
-  }, [sessionData?.sessionId, sessionData?.expiresAt])
+  }, [sessionData, sessionExpired])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -231,33 +127,11 @@ export default function StudentAttendancePage() {
         return
       }
 
-      // Check if we're in a secure context (HTTPS or localhost)
+      // Check if we're in a secure context
       if (!window.isSecureContext && window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.')) {
-        setError("Camera requires HTTPS. Please use manual entry or open on Vercel deployment.")
-        setScanning(false)
-        return
-      }
-
-      // Explicitly request camera permission first
-      console.log("📷 Requesting camera permission...")
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: "environment" } 
-        })
-        // Permission granted, stop the stream (Html5Qrcode will request its own)
-        stream.getTracks().forEach(track => track.stop())
-        console.log("✅ Camera permission granted")
-      } catch (permError: any) {
-        console.error("❌ Camera permission error:", permError)
-        if (permError.name === 'NotAllowedError') {
-          setError("Camera permission denied. Please allow camera access in your browser settings, then refresh the page.")
-        } else if (permError.name === 'NotFoundError') {
-          setError("No camera found on this device. Please use manual entry.")
-        } else {
-          setError(`Camera error: ${permError.message}. Please use manual entry.`)
-        }
-        setScanning(false)
-        return
+        throw new Error(
+          "Camera access requires HTTPS. Use 'Enter Session Code Manually' button below."
+        )
       }
 
       // Initialize Html5Qrcode
@@ -271,33 +145,12 @@ export default function StudentAttendancePage() {
         throw new Error("No camera found. Please check camera permissions or use manual entry.")
       }
 
-      // Find back camera - look for labels containing 'back', 'rear', 'environment'
-      // Fall back to last camera (usually back camera on mobile) or first camera
-      let cameraId = cameras[0].id
-      
-      // Try to find back camera by label
-      const backCamera = cameras.find(camera => {
-        const label = camera.label.toLowerCase()
-        return label.includes('back') || 
-               label.includes('rear') || 
-               label.includes('environment') ||
-               label.includes('0') // Often back camera is labeled with 0
-      })
-      
-      if (backCamera) {
-        cameraId = backCamera.id
-        console.log("📷 Using back camera:", backCamera.label)
-      } else if (cameras.length > 1) {
-        // If no back camera found by label, use last camera (usually back on mobile)
-        cameraId = cameras[cameras.length - 1].id
-        console.log("📷 Using last camera (likely back):", cameras[cameras.length - 1].label)
-      } else {
-        console.log("📷 Using only available camera:", cameras[0].label)
-      }
+      // Use back camera if available (last camera is usually back camera on mobile)
+      const cameraId = cameras.length > 1 ? cameras[cameras.length - 1].id : cameras[0].id
 
-      // Start scanning with facingMode constraint as fallback
+      // Start scanning
       await html5QrCode.start(
-        { facingMode: "environment" }, // This requests back camera
+        cameraId,
         {
           fps: 10, // Frames per second
           qrbox: { width: 250, height: 250 }, // Scanning box size
@@ -305,24 +158,8 @@ export default function StudentAttendancePage() {
         },
         async (decodedText) => {
           // Success callback when QR code is scanned
-          // Prevent multiple scans from firing - check and set atomically
-          if (qrScannedRef.current) {
-            return
-          }
-          qrScannedRef.current = true
-          
-          // Stop scanner immediately to prevent more callbacks
-          try {
-            if (html5QrCodeRef.current) {
-              await html5QrCodeRef.current.stop()
-            }
-          } catch (stopErr) {
-            console.log("Scanner already stopped")
-          }
-          
           try {
             let sessionCode = ""
-            let scannedData: any = null
             
             // Handle both URL format (new) and JSON format (legacy)
             if (decodedText.startsWith("http")) {
@@ -333,7 +170,7 @@ export default function StudentAttendancePage() {
               console.log("🔍 Extracted session code:", sessionCode)
             } else {
               // QR code contains JSON (legacy format)
-              scannedData = JSON.parse(decodedText)
+              const scannedData = JSON.parse(decodedText)
               console.log("📱 QR Code scanned (JSON format):", scannedData)
               sessionCode = scannedData.sessionCode || scannedData.session_code || ""
             }
@@ -373,11 +210,6 @@ export default function StudentAttendancePage() {
                     date: data.session.session_date,
                     expiresAt: data.session.expires_at,
                     remainingSeconds: data.session.remaining_seconds,
-                    // Geolocation fields
-                    location_required: data.session.location_required,
-                    class_latitude: data.session.class_latitude,
-                    class_longitude: data.session.class_longitude,
-                    location_radius: data.session.location_radius,
                   }
                   
                   setSessionData(completeSessionData)
@@ -394,13 +226,17 @@ export default function StudentAttendancePage() {
               setSessionData(scannedData)
             }
             
+            showToast("QR Code scanned successfully!", "success")
             setStep("email")
             stopScanning()
           } catch (e) {
             console.error("Invalid QR code format or fetch error:", e)
-            // Reset so user can try scanning again
-            qrScannedRef.current = false
-            setError("Invalid QR code or connection error")
+            const errorMsg = "Invalid QR code or connection error"
+            // Only show toast if it's a new error (prevent repeated toasts)
+            if (errorMsg !== lastError) {
+              showToast(errorMsg, "error")
+              setLastError(errorMsg)
+            }
           }
         },
         (errorMessage) => {
@@ -408,31 +244,6 @@ export default function StudentAttendancePage() {
           // console.log("QR scan error:", errorMessage)
         }
       )
-
-      // Try to get the video track for zoom control after scanner starts
-      setTimeout(() => {
-        try {
-          const videoElement = document.querySelector('#qr-reader video') as HTMLVideoElement
-          if (videoElement && videoElement.srcObject) {
-            const stream = videoElement.srcObject as MediaStream
-            const track = stream.getVideoTracks()[0]
-            if (track) {
-              videoTrackRef.current = track
-              // Check if zoom is supported
-              const capabilities = track.getCapabilities() as MediaTrackCapabilities & { zoom?: { min: number; max: number } }
-              if (capabilities.zoom) {
-                setZoomSupported(true)
-                setMaxZoom(capabilities.zoom.max || 4)
-                console.log("📷 Zoom supported, max zoom:", capabilities.zoom.max)
-              } else {
-                console.log("📷 Zoom not supported on this device")
-              }
-            }
-          }
-        } catch (err) {
-          console.log("Could not get video track for zoom:", err)
-        }
-      }, 1000)
     } catch (err) {
       console.error("Error starting camera:", err)
       let errorMsg = err instanceof Error ? err.message : "Failed to access camera"
@@ -445,24 +256,27 @@ export default function StudentAttendancePage() {
       }
       
       setError(errorMsg)
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast(errorMsg, "error")
+        setLastError(errorMsg)
+      }
       setScanning(false)
     }
   }
 
   const isValidEmail = (email: string): boolean => {
     const emailLower = email.toLowerCase()
-    return emailLower.endsWith("@kprcas.ac.in")
+    return emailLower.endsWith("@kprcas.ac.in") || emailLower.endsWith("@gmail.com")
   }
 
   const startScanning = () => {
     // Check HTTPS before attempting to start camera
     if (!window.isSecureContext && window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.')) {
-      setError("Camera requires HTTPS. Please use 'Enter Session Code Manually' button.")
+      showToast("Camera requires HTTPS. Please use 'Enter Session Code Manually' button.", "error")
       return
     }
     
-    // Reset QR scanned flag for new scan
-    qrScannedRef.current = false
     setError("")
     setScanning(true)
     // The actual scanner initialization happens in useEffect
@@ -478,45 +292,13 @@ export default function StudentAttendancePage() {
       }
       html5QrCodeRef.current = null
     }
-    // Reset zoom state
-    videoTrackRef.current = null
-    setZoomLevel(1)
-    setMaxZoom(1)
-    setZoomSupported(false)
     setScanning(false)
-  }
-
-  // Zoom control functions
-  const handleZoomIn = async () => {
-    if (!videoTrackRef.current || !zoomSupported) return
-    const newZoom = Math.min(zoomLevel + 0.5, maxZoom)
-    try {
-      await videoTrackRef.current.applyConstraints({
-        advanced: [{ zoom: newZoom } as MediaTrackConstraintSet]
-      })
-      setZoomLevel(newZoom)
-    } catch (err) {
-      console.error("Error zooming in:", err)
-    }
-  }
-
-  const handleZoomOut = async () => {
-    if (!videoTrackRef.current || !zoomSupported) return
-    const newZoom = Math.max(zoomLevel - 0.5, 1)
-    try {
-      await videoTrackRef.current.applyConstraints({
-        advanced: [{ zoom: newZoom } as MediaTrackConstraintSet]
-      })
-      setZoomLevel(newZoom)
-    } catch (err) {
-      console.error("Error zooming out:", err)
-    }
   }
 
   const handleManualEntry = () => {
     setStep("code")
     setMessage("Enter the session code provided by your teacher")
-    // No toast here - it's not needed and could be annoying
+    showToast("Using manual entry mode", "info")
   }
 
   const handleVerifySessionCode = async (e: React.FormEvent) => {
@@ -571,87 +353,25 @@ export default function StudentAttendancePage() {
         date: data.session.session_date,
         expiresAt: data.session.expires_at,
         remainingSeconds: data.session.remaining_seconds,
-        // Geolocation fields
-        location_required: data.session.location_required,
-        class_latitude: data.session.class_latitude,
-        class_longitude: data.session.class_longitude,
-        location_radius: data.session.location_radius,
       })
       
       // Initialize timer
       setTimeRemaining(data.session.remaining_seconds || 0)
       setSessionExpired(false)
       
+      showToast("Session code verified!", "success")
       setMessage("Session verified successfully!")
       setStep("email")
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to verify session code"
       setError(errorMsg)
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast(errorMsg, "error")
+        setLastError(errorMsg)
+      }
     } finally {
       setLoading(false)
-    }
-  }
-
-  // Separate function to verify location
-  const handleVerifyLocation = async () => {
-    setError("")
-    setMessage("")
-    setLocationError("")
-    
-    if (!sessionData) {
-      setError("No session data found. Please scan QR code first.")
-      return
-    }
-
-    const hasLocationRestriction = sessionData.location_required && 
-                                    sessionData.class_latitude !== null && 
-                                    sessionData.class_latitude !== undefined && 
-                                    sessionData.class_longitude !== null && 
-                                    sessionData.class_longitude !== undefined
-
-    if (!hasLocationRestriction) {
-      // No location restriction, mark as verified
-      setLocationVerified(true)
-      setMessage("No location restriction for this class.")
-      return
-    }
-
-    setCheckingLocation(true)
-    setMessage("Checking your location...")
-
-    try {
-      const currentLocation = await getStudentLocation()
-      setStudentLocation(currentLocation)
-      console.log("📍 Student location:", currentLocation)
-      
-      // Calculate distance from class
-      const distance = calculateDistance(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        sessionData.class_latitude!,
-        sessionData.class_longitude!
-      )
-      
-      const allowedRadius = sessionData.location_radius || 100
-      console.log(`📍 Distance from class: ${distance.toFixed(2)}m (allowed: ${allowedRadius}m)`)
-      
-      if (distance > allowedRadius) {
-        setLocationError(`You are ${Math.round(distance)}m away from the class. You must be within ${allowedRadius}m to mark attendance.`)
-        setError(`You are too far from the class location. Please move closer to mark attendance.`)
-        setLocationVerified(false)
-        return
-      }
-      
-      console.log("✅ Location verified - student is within allowed radius")
-      setLocationVerified(true)
-      setMessage(`Location verified! You are ${Math.round(distance)}m from the classroom.`)
-    } catch (locError) {
-      const locErrorMsg = locError instanceof Error ? locError.message : "Failed to get location"
-      setLocationError(locErrorMsg)
-      setError(locErrorMsg)
-      setLocationVerified(false)
-    } finally {
-      setCheckingLocation(false)
     }
   }
 
@@ -666,24 +386,12 @@ export default function StudentAttendancePage() {
     }
 
     if (!isValidEmail(email)) {
-      setError("Only @kprcas.ac.in emails are allowed")
+      setError("Only @kprcas.ac.in and @gmail.com emails are allowed")
       return
     }
 
     if (!sessionData) {
       setError("No session data found. Please scan QR code first.")
-      return
-    }
-
-    // Check if location verification is required but not done
-    const hasLocationRestriction = sessionData.location_required && 
-                                    sessionData.class_latitude !== null && 
-                                    sessionData.class_latitude !== undefined && 
-                                    sessionData.class_longitude !== null && 
-                                    sessionData.class_longitude !== undefined
-
-    if (hasLocationRestriction && !locationVerified) {
-      setError("Please verify your location first before sending OTP.")
       return
     }
 
@@ -698,10 +406,7 @@ export default function StudentAttendancePage() {
         body: JSON.stringify({ 
           email,
           sessionId: sessionData.sessionId,
-          sessionCode: sessionData.sessionCode,
-          // Include location data if available
-          studentLatitude: studentLocation?.latitude,
-          studentLongitude: studentLocation?.longitude,
+          sessionCode: sessionData.sessionCode
         }),
       })
 
@@ -711,6 +416,8 @@ export default function StudentAttendancePage() {
         // Check if this is a class mismatch error (always show this important error)
         if (response.status === 403 && data.blocked) {
           setError(data.error)
+          showToast(data.error, "error")
+          setLastError(data.error) // Update last error to prevent future repetition
           setLoading(false)
           return // Don't proceed to OTP step
         }
@@ -722,13 +429,11 @@ export default function StudentAttendancePage() {
         otp: data.otp,
         email: email.toLowerCase(),
         expiresAt: Date.now() + 2 * 60 * 1000, // 2 minutes from now
-        // Store location for later verification
-        studentLatitude: studentLocation?.latitude,
-        studentLongitude: studentLocation?.longitude,
       }
       localStorage.setItem("attendance_otp", JSON.stringify(otpData))
       console.log("💾 OTP stored in localStorage:", otpData)
 
+      showToast("OTP sent to your email!", "success")
       setMessage("OTP sent to your email!")
       setStep("otp")
 
@@ -741,6 +446,11 @@ export default function StudentAttendancePage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to send OTP"
       setError(errorMsg)
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast(errorMsg, "error")
+        setLastError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
@@ -768,58 +478,19 @@ export default function StudentAttendancePage() {
 
     // Check if session has expired
     if (sessionExpired || timeRemaining <= 0) {
-      setError("Session has expired. Please ask your teacher to start a new session.")
+      const errorMsg = "Session has expired. Please ask your teacher to start a new session."
+      setError(errorMsg)
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast("Session expired - cannot mark attendance", "error")
+        setLastError(errorMsg)
+      }
       return
     }
 
     setLoading(true)
 
     try {
-      // Re-check location at the moment of marking attendance if required
-      let currentLocation: {latitude: number; longitude: number} | null = null
-      
-      // Use explicit null checks to handle 0 coordinates
-      const hasLocationRestriction = sessionData.location_required && 
-                                      sessionData.class_latitude !== null && 
-                                      sessionData.class_latitude !== undefined && 
-                                      sessionData.class_longitude !== null && 
-                                      sessionData.class_longitude !== undefined
-      
-      if (hasLocationRestriction) {
-        console.log("📍 Re-checking location before marking attendance...")
-        setMessage("Verifying your location...")
-        
-        try {
-          currentLocation = await getStudentLocation()
-          console.log("📍 Current student location:", currentLocation)
-          
-          // Calculate distance from class
-          const distance = calculateDistance(
-            currentLocation.latitude,
-            currentLocation.longitude,
-            sessionData.class_latitude!,
-            sessionData.class_longitude!
-          )
-          
-          const allowedRadius = sessionData.location_radius || 100
-          console.log(`📍 Distance from class: ${distance.toFixed(2)}m (allowed: ${allowedRadius}m)`)
-          
-          if (distance > allowedRadius) {
-            setError(`You are ${Math.round(distance)}m away from the class. You must be within ${allowedRadius}m to mark attendance.`)
-            setLoading(false)
-            return
-          }
-          
-          console.log("✅ Location verified - student is within allowed radius")
-          setStudentLocation(currentLocation)
-        } catch (locError) {
-          const locErrorMsg = locError instanceof Error ? locError.message : "Failed to get location"
-          setError(`Location required: ${locErrorMsg}`)
-          setLoading(false)
-          return
-        }
-      }
-
       // Verify OTP from localStorage
       console.log("🔐 Verifying OTP from localStorage...")
       console.log("🔐 Email:", email)
@@ -833,7 +504,7 @@ export default function StudentAttendancePage() {
       }
 
       const otpData = JSON.parse(storedData)
-      console.log("📝 Retrieved from localStorage:", otpData)
+      console.log("� Retrieved from localStorage:", otpData)
 
       // Check if OTP expired
       if (Date.now() > otpData.expiresAt) {
@@ -874,18 +545,8 @@ export default function StudentAttendancePage() {
       localStorage.removeItem("attendance_otp")
       console.log("🗑️ OTP removed from localStorage")
 
-      // Use freshly captured location (from the re-check above) or studentLocation state
-      let locationData: {studentLatitude?: number; studentLongitude?: number} = {}
-      if (currentLocation) {
-        locationData.studentLatitude = currentLocation.latitude
-        locationData.studentLongitude = currentLocation.longitude
-      } else if (studentLocation) {
-        locationData.studentLatitude = studentLocation.latitude
-        locationData.studentLongitude = studentLocation.longitude
-      }
-
       // Now mark attendance using email (backend will create/find user)
-      console.log("📝 Marking attendance...", locationData)
+      console.log("📝 Marking attendance...")
       const attendanceResponse = await fetch("/api/attendance/mark", {
         method: "POST",
         headers: {
@@ -895,8 +556,6 @@ export default function StudentAttendancePage() {
           email: email.toLowerCase(),
           sessionId: sessionData.sessionId,
           sessionCode: sessionData.sessionCode,
-          studentLatitude: locationData.studentLatitude,
-          studentLongitude: locationData.studentLongitude,
         }),
       })
 
@@ -907,11 +566,17 @@ export default function StudentAttendancePage() {
       }
 
       console.log("✅ Attendance marked successfully!")
+      showToast("Attendance marked successfully! 🎉", "success")
       setMessage("Attendance marked successfully!")
       setStep("success")
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to mark attendance"
       setError(errorMsg)
+      // Only show toast if it's a new error (prevent repeated toasts)
+      if (errorMsg !== lastError) {
+        showToast(errorMsg, "error")
+        setLastError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
@@ -932,11 +597,12 @@ export default function StudentAttendancePage() {
     setMessage("")
     setSessionExpired(false)
     setTimeRemaining(0)
-    qrScannedRef.current = false
+    setLastError("")
   }
 
   return (
     <ResponsiveWrapper>
+      <ToastContainer />
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4 safe-area-insets">
         <div className="w-full max-w-md space-y-4">
           {/* Header */}
@@ -1030,34 +696,6 @@ export default function StudentAttendancePage() {
                       {/* Html5Qrcode scanner will render here */}
                       <div id="qr-reader" className="w-full"></div>
                     </div>
-                    
-                    {/* Zoom Controls */}
-                    {zoomSupported && (
-                      <div className="flex items-center justify-center gap-4 p-3 bg-gray-100 rounded-lg">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleZoomOut}
-                          disabled={zoomLevel <= 1}
-                          className="touch-target"
-                        >
-                          <ZoomOut className="h-4 w-4" />
-                        </Button>
-                        <span className="text-sm font-medium min-w-[60px] text-center">
-                          {zoomLevel.toFixed(1)}x
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleZoomIn}
-                          disabled={zoomLevel >= maxZoom}
-                          className="touch-target"
-                        >
-                          <ZoomIn className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                    
                     <Button
                       className="w-full touch-target ripple"
                       variant="destructive"
@@ -1262,34 +900,6 @@ export default function StudentAttendancePage() {
                           </p>
                         )}
                       </div>
-                      
-                      {/* Location Requirement Notice */}
-                      {sessionData.location_required && (
-                        <div className="p-3 rounded-md border bg-amber-50 border-amber-200">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-5 w-5 text-amber-600" />
-                            <div>
-                              <p className="text-sm font-medium text-amber-800">
-                                📍 Location Verification Required
-                              </p>
-                              <p className="text-xs text-amber-700 mt-1">
-                                You must be within {sessionData.location_radius || 100}m of the classroom to mark attendance.
-                              </p>
-                            </div>
-                          </div>
-                          {checkingLocation && (
-                            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                              <Navigation className="h-3 w-3 animate-pulse" />
-                              Checking your location...
-                            </p>
-                          )}
-                          {locationError && (
-                            <p className="text-xs text-red-600 mt-2">
-                              ❌ {locationError}
-                            </p>
-                          )}
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -1351,7 +961,7 @@ export default function StudentAttendancePage() {
                       disabled={loading}
                     />
                     <FieldDescription>
-                      Only @kprcas.ac.in emails are allowed
+                      Only @kprcas.ac.in and @gmail.com emails are allowed
                     </FieldDescription>
                   </Field>
 
@@ -1369,33 +979,10 @@ export default function StudentAttendancePage() {
                     </div>
                   )}
 
-                  {/* Location Verification Button - Show when location is required */}
-                  {sessionData?.location_required && sessionData?.class_latitude !== null && sessionData?.class_latitude !== undefined && (
-                    <Field>
-                      {!locationVerified ? (
-                        <Button 
-                          type="button"
-                          onClick={handleVerifyLocation}
-                          disabled={checkingLocation || sessionExpired}
-                          className="w-full touch-target ripple bg-amber-600 hover:bg-amber-700"
-                        >
-                          <MapPin className="mr-2 h-4 w-4" />
-                          {checkingLocation ? "Verifying Location..." : "Verify Location"}
-                        </Button>
-                      ) : (
-                        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          <p className="text-sm text-green-600 font-medium">✅ Location Verified</p>
-                        </div>
-                      )}
-                    </Field>
-                  )}
-
                   <Field>
-                    {/* Send OTP Button */}
                     <Button 
                       type="submit" 
-                      disabled={loading || sessionExpired || (sessionData?.location_required && sessionData?.class_latitude !== null && sessionData?.class_latitude !== undefined && !locationVerified)} 
+                      disabled={loading || sessionExpired} 
                       className="w-full touch-target ripple"
                     >
                       {loading ? "Sending..." : sessionExpired ? "Session Expired" : "Send OTP"}
@@ -1538,8 +1125,13 @@ export default function StudentAttendancePage() {
             </p>
             <Button 
               onClick={() => {
-                // Go directly to OD request page - it has its own email-based authentication
-                window.location.href = '/student/od-request';
+                // Check if user is logged in
+                const user = localStorage.getItem('user');
+                if (!user) {
+                  window.location.href = '/login';
+                } else {
+                  window.location.href = '/student/od-request';
+                }
               }}
               variant="outline"
               className="w-full touch-target text-xs sm:text-sm"

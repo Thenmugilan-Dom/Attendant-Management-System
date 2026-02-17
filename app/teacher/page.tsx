@@ -137,6 +137,11 @@ export default function TeacherDashboard() {
   const [liveReportData, setLiveReportData] = useState<any[]>([])
   const [loadingLiveReport, setLoadingLiveReport] = useState(false)
 
+  // Class management (for testing)
+  const [showClassManagement, setShowClassManagement] = useState(false)
+  const [teacherClasses, setTeacherClasses] = useState<any[]>([])
+  const [loadingClasses, setLoadingClasses] = useState(false)
+
   // Fetch pending OD requests for this teacher
   const fetchPendingODRequests = async (teacherId: string) => {
     try {
@@ -486,9 +491,17 @@ export default function TeacherDashboard() {
               const emailResult = await emailResponse.json()
               if (emailResult.success) {
                 console.log("✅ QR code email sent for auto-started session")
+                // Show success notification to user
+                alert(`🔔 Auto-Session Started!\n\n✓ Class: ${session.class_name} ${session.section}\n✓ Subject: ${session.subject_code}\n✓ Session Code: ${newSession.session_code}\n\n📧 QR code email sent successfully to:\n${emailResult.teacher_email}\n\nSession is active now!`)
+              } else {
+                console.warn("⚠️ Email send failed for auto-started session:", emailResult)
+                // Show warning notification to user
+                alert(`🔔 Auto-Session Started!\n\n✓ Class: ${session.class_name} ${session.section}\n✓ Subject: ${session.subject_code}\n✓ Session Code: ${newSession.session_code}\n\n⚠️ Email failed: ${emailResult.error || 'Unknown error'}\n\nSession is active. Please show QR code on screen.`)
               }
             } catch (emailError) {
               console.error("⚠️ Error sending email for auto-started session:", emailError)
+              // Show error notification to user
+              alert(`🔔 Auto-Session Started!\n\n✓ Class: ${session.class_name} ${session.section}\n✓ Subject: ${session.subject_code}\n✓ Session Code: ${newSession.session_code}\n\n⚠️ Email could not be sent (network error)\n\nSession is active. Please show QR code on screen.`)
             }
           } catch (error) {
             console.error("❌ Error in auto-start logic:", error)
@@ -782,12 +795,15 @@ export default function TeacherDashboard() {
         
         if (emailResult.success) {
           console.log("✅ QR code email sent successfully")
-          alert(`✅ Session started!\n\nQR code has been sent to:\n${user.email}\n\nMessage ID: ${emailResult.messageId || 'Processing'}`)
+          const recipients = emailResult.recipients_count > 1 ? `${user.email} and class email` : user.email
+          alert(`✅ Session started successfully!\n\n📧 QR code email sent to:\n${recipients}\n\n✓ Session Code: ${session.session_code}\n✓ Message ID: ${emailResult.messageId || 'Processing'}\n\nShow the QR code on screen to students.`)
         } else {
           console.warn("⚠️ Email send failed:", emailResult)
+          alert(`⚠️ Session started but email failed to send!\n\n✓ Session is active\n✓ Session Code: ${session.session_code}\n\n❌ Email Error: ${emailResult.error || 'Unknown error'}\n\nPlease show the QR code on screen to students.`)
         }
       } catch (emailError) {
         console.error("❌ Error sending email:", emailError)
+        alert(`⚠️ Session started but email failed!\n\n✓ Session is active\n✓ Session Code: ${session.session_code}\n\n❌ Network error occurred\n\nPlease show the QR code on screen to students.`)
       }
     } catch (error) {
       console.error("❌ Error starting session:", error)
@@ -1027,6 +1043,58 @@ export default function TeacherDashboard() {
     }
   }
 
+  // Fetch classes for teacher (for deletion)
+  const fetchTeacherClasses = async () => {
+    if (!user?.id) return
+    
+    setLoadingClasses(true)
+    try {
+      const response = await fetch(`/api/teacher/classes?teacherId=${user.id}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setTeacherClasses(data.data || [])
+      } else {
+        console.error('Error fetching teacher classes:', data.error)
+      }
+    } catch (error) {
+      console.error('Error fetching teacher classes:', error)
+    } finally {
+      setLoadingClasses(false)
+    }
+  }
+
+  // Delete a class (for testing purposes)
+  const handleClassDelete = async (classId: string, className: string, section: string) => {
+    const confirmMsg = `⚠️ DELETE CLASS/SECTION?\n\nClass: ${className}\nSection: ${section || 'N/A'}\n\nThis will permanently remove:\n• The class record\n• All students in this class\n• All attendance records\n• All assignments\n\nThis action cannot be undone!\n\nAre you sure?`
+    
+    if (!confirm(confirmMsg)) return
+
+    try {
+      const response = await fetch('/api/teacher/classes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: user?.id,
+          classId: classId,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert('✅ Class deleted successfully')
+        await fetchTeacherClasses()
+        await fetchTeacherData(user?.id!)
+      } else {
+        alert(`❌ Error: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting class:', error)
+      alert('❌ Failed to delete class')
+    }
+  }
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -1177,6 +1245,85 @@ export default function TeacherDashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Class Management (Testing) */}
+        <Card className="border-orange-200 bg-orange-50/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl text-orange-800">
+                  🧪 Class/Section Management (Testing)
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm text-orange-700">
+                  Delete class sections for testing purposes only
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowClassManagement(!showClassManagement)
+                  if (!showClassManagement && !teacherClasses.length) {
+                    fetchTeacherClasses()
+                  }
+                }}
+                className="border-orange-300 text-orange-800 hover:bg-orange-100"
+              >
+                {showClassManagement ? 'Hide' : 'Show'}
+              </Button>
+            </div>
+          </CardHeader>
+          
+          {showClassManagement && (
+            <CardContent>
+              {loadingClasses ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+                  <p className="mt-2 text-sm text-orange-700">Loading classes...</p>
+                </div>
+              ) : teacherClasses.length === 0 ? (
+                <div className="text-center py-8 text-orange-700">
+                  <p className="text-sm">No classes found for deletion</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="bg-orange-100 border border-orange-200 rounded-lg p-3 mb-3">
+                    <p className="text-xs text-orange-800 font-medium">
+                      ⚠️ Warning: Deleting a class will permanently remove all associated data including students, attendance records, and assignments.
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    {teacherClasses.map((cls) => (
+                      <div
+                        key={cls.id}
+                        className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-gray-900">
+                            {cls.class_name} {cls.section ? `- Section ${cls.section}` : ''}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            Year: {cls.year || 'N/A'} • Department: {cls.department || 'General'} • Students: {cls.total_students || 0}
+                          </div>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleClassDelete(cls.id, cls.class_name, cls.section)}
+                          className="ml-3 shrink-0"
+                        >
+                          <span className="hidden sm:inline">Delete</span>
+                          <span className="sm:hidden">🗑️</span>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
 
         {/* Stats Grid */}
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">

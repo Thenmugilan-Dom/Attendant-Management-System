@@ -627,7 +627,12 @@ export default function AdminManagementPage() {
   }
 
   const handleClassDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this class?")) return
+    const classToDelete = classes.find(c => c.id === id)
+    if (!classToDelete) return
+    
+    const confirmMsg = `Are you sure you want to delete this class?\n\nClass: ${classToDelete.class_name}\nSection: ${classToDelete.section || 'N/A'}\nYear: ${classToDelete.year || 'N/A'}\n\nThis will permanently remove the class and all associated data.`
+    
+    if (!confirm(confirmMsg)) return
 
     try {
       const userObj = JSON.parse(sessionStorage.getItem("user") || "{}")
