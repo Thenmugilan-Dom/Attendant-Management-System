@@ -160,6 +160,15 @@ export function LoginForm({
         </a>
         .
       </FieldDescription>
+      <div className="px-6 text-center">
+        <p className="text-xs text-muted-foreground mb-2">For Students:</p>
+        <a 
+          href="/class-login" 
+          className="text-sm font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+        >
+          📚 Student Class Login (No QR Code Needed)
+        </a>
+      </div>
     </div>
   )
 }

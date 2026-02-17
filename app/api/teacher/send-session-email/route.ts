@@ -17,10 +17,15 @@ export async function POST(request: NextRequest) {
         { 
           success: false,
           error: 'Email service not configured - missing Gmail credentials. Please contact administrator.',
+          suggestion: 'Gmail App Password may be expired. Generate new one at: https://myaccount.google.com/apppasswords'
         },
         { status: 503 } // Service Unavailable
       )
     }
+    
+    console.log('✅ Gmail credentials found')
+    console.log('📧 Gmail User:', process.env.GMAIL_USER)
+    console.log('🔑 App Password:', process.env.GMAIL_APP_PASSWORD ? `${process.env.GMAIL_APP_PASSWORD.substring(0, 4)}****` : 'Not set')
 
     const { sessionId, teacherEmail } = await request.json()
 
@@ -149,137 +154,106 @@ export async function POST(request: NextRequest) {
       maxConnections: 1,
       logger: false,              // Disable verbose logging for speed
       debug: false,
+      // Force immediate delivery
+      tls: {
+        rejectUnauthorized: true,
+        minVersion: 'TLSv1.2'
+      },
+      // Aggressive retry for faster delivery
+      maxMessages: 1,
     } as any)
 
     // Verify connection before sending for faster error detection
     try {
-      console.log('🔌 Verifying SMTP connection...')
+      console.log('🔌 Verifying SMTP connection to Gmail...')
       const verifyStart = Date.now()
       await transporter.verify()
       console.log(`✅ SMTP connection verified in ${Date.now() - verifyStart}ms`)
-    } catch (verifyError) {
+      console.log('✅ Gmail authentication successful')
+    } catch (verifyError: any) {
       console.error('❌ SMTP verification failed:', verifyError)
+      console.error('Error code:', verifyError?.code)
+      console.error('Error response:', verifyError?.response || verifyError?.message)
       transporter.close()
+      
+      let errorMessage = 'Unable to connect to Gmail server'
+      let suggestion = ''
+      
+      if (verifyError?.code === 'EAUTH' || verifyError?.response?.includes('535')) {
+        errorMessage = 'Gmail authentication failed - Invalid credentials'
+        suggestion = '🔑 Your Gmail App Password may be EXPIRED or INVALID. Generate a new one at: https://myaccount.google.com/apppasswords'
+      } else if (verifyError?.code === 'ETIMEDOUT' || verifyError?.code === 'ECONNREFUSED') {
+        errorMessage = 'Cannot reach Gmail servers - Network issue'
+        suggestion = 'Check your internet connection or firewall settings'
+      }
+      
       return NextResponse.json(
         { 
           success: false,
-          error: 'Email server connection failed',
-          details: verifyError instanceof Error ? verifyError.message : 'Unable to connect to email server'
+          error: errorMessage,
+          details: verifyError instanceof Error ? verifyError.message : 'Unknown error',
+          error_code: verifyError?.code,
+          suggestion: suggestion,
+          gmail_user: process.env.GMAIL_USER
         },
         { status: 503 }
       )
     }
 
-    // Email HTML template
+    // Email HTML template (simplified to avoid spam filters)
     const htmlTemplate = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8">
     <style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { 
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-        color: white; 
-        padding: 30px; 
-        text-align: center; 
-        border-radius: 10px 10px 0 0; 
-      }
-      .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-      .session-box { 
-        background: white; 
-        border: 2px solid #667eea; 
-        padding: 20px; 
-        text-align: center; 
-        margin: 20px 0; 
-        border-radius: 8px; 
-      }
-      .session-code { 
-        font-size: 28px; 
-        font-weight: bold; 
-        letter-spacing: 4px; 
-        color: #667eea; 
-        margin: 10px 0;
-      }
-      .qr-code { margin: 20px 0; }
-      .info-row { 
-        display: flex; 
-        justify-content: space-between; 
-        padding: 8px 0; 
-        border-bottom: 1px solid #eee; 
-      }
-      .info-label { font-weight: bold; color: #666; }
-      .info-value { color: #333; }
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+      .header { background: #667eea; color: white; padding: 20px; text-align: center; }
+      .content { padding: 20px; background: #f9f9f9; }
+      .session-info { background: white; border: 2px solid #667eea; padding: 15px; margin: 15px 0; }
+      .qr-section { text-align: center; margin: 20px 0; padding: 20px; background: white; }
+      .important { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0; }
       .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
-      .warning { 
-        background: #fff3cd; 
-        border-left: 4px solid #ffc107; 
-        padding: 12px; 
-        margin: 20px 0; 
-      }
-      .success-badge {
-        background: #28a745;
-        color: white;
-        padding: 5px 15px;
-        border-radius: 20px;
-        display: inline-block;
-        font-size: 12px;
-        margin-bottom: 10px;
-      }
     </style>
   </head>
   <body>
-    <div class="container">
-      <div class="header">
-        <h1>KPRCAS Attendance Session</h1>
-        <p>Auto-Generated Attendance Session</p>
+    <div class="header">
+      <h2>🎓 Attendance Session Active</h2>
+      <p>KPRCAS - ${new Date().toLocaleDateString()}</p>
+    </div>
+    <div class="content">
+      <p>Hello <strong>${teacher.name}</strong>,</p>
+      <p>Your attendance session is now active and ready for students.</p>
+      
+      <div class="session-info">
+        <h3>📚 Session Details</h3>
+        <p><strong>Class:</strong> ${classData?.class_name || 'N/A'} ${classData?.section || ''}</p>
+        <p><strong>Subject:</strong> ${subjectData?.subject_code || 'N/A'} - ${subjectData?.subject_name || 'N/A'}</p>
+        <p><strong>Started:</strong> ${new Date().toLocaleString()}</p>
+        <p><strong>Expires:</strong> ${new Date(session.expires_at).toLocaleString()}</p>
       </div>
-      <div class="content">
-        <div class="success-badge">SESSION ACTIVE</div>
-        
-        <h2>Hello ${teacher.name},</h2>
-        <p>Your attendance session has been automatically created and is now active.</p>
-        
-        <div class="session-box">
-          <h3 style="color: #667eea; margin-top: 0;">Session Details</h3>
-          
-          <div class="info-row">
-            <span class="info-label">Class:</span>
-            <span class="info-value">${classData?.class_name || 'N/A'} ${classData?.section || ''}</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="info-label">Subject:</span>
-            <span class="info-value">${subjectData?.subject_code || 'N/A'} - ${subjectData?.subject_name || 'N/A'}</span>
-          </div>
-          
-          <div class="qr-code">
-            <p style="margin-bottom: 10px; color: #666;">QR Code for Students:</p>
-            <img src="cid:qrcode" alt="QR Code" style="max-width: 300px; border: 2px solid #667eea; padding: 10px; background: white;">
-          </div>
-          
-          <div class="info-row">
-            <span class="info-label">Expires At:</span>
-            <span class="info-value">${new Date(session.expires_at).toLocaleString()}</span>
-          </div>
-        </div>
-        
-        <div class="warning">
-          <strong>Important:</strong> This session is valid for <strong>5 minutes</strong> only. Students must scan the QR code or enter the session code before it expires.
-        </div>
-        
-        <h3>How Students Can Mark Attendance:</h3>
-        <ol>
-          <li>Scan the QR code above</li>
-          <li>Verify their identity with OTP sent to their email</li>
-        </ol>
-        
-        <p>Best regards,<br>KPRCAS Attendance System</p>
+      
+      <div class="qr-section">
+        <h3>📱 QR Code for Students</h3>
+        <p>Students can scan this code to mark attendance:</p>
+        <img src="cid:qrcode" alt="Attendance QR Code" style="max-width: 300px; border: 2px solid #667eea; padding: 10px;">
       </div>
-      <div class="footer">
-        <p>This is an automated email. Please do not reply.</p>
-        <p>&copy; ${new Date().getFullYear()} KPRCAS. All rights reserved.</p>
+      
+      <div class="important">
+        <strong>⏰ Important:</strong> This session is valid for a limited time. Students must scan before it expires.
       </div>
+      
+      <p><strong>How students mark attendance:</strong></p>
+      <ol>
+        <li>Scan the QR code above</li>
+        <li>Verify identity with OTP sent to their email</li>
+        <li>Attendance is recorded automatically</li>
+      </ol>
+      
+      <p>Best regards,<br><strong>KPRCAS Attendance System</strong></p>
+    </div>
+    <div class="footer">
+      <p>This is an automated notification from KPRCAS Attendance System.</p>
+      <p>&copy; ${new Date().getFullYear()} KPRCAS College. All rights reserved.</p>
     </div>
   </body>
 </html>`
@@ -294,15 +268,28 @@ export async function POST(request: NextRequest) {
 
     // Send email with QR code attachment
     const mailOptions = {
-      from: `"KPRCAS Attendance System" <${process.env.GMAIL_USER}>`,
+      from: `"KPRCAS Attendance" <${process.env.GMAIL_USER}>`,
       to: emailTo,
-      subject: `Attendance Session Active - ${classData?.class_name || 'Class'} ${subjectData?.subject_code || 'Subject'}`,
+      replyTo: process.env.GMAIL_USER,
+      subject: `✅ Attendance Session - ${classData?.class_name || 'Class'} ${subjectData?.subject_code || 'Subject'} - ${new Date().toLocaleTimeString()}`,
+      text: `KPRCAS Attendance Session Active\n\nHello ${teacher.name},\n\nYour attendance session is now active.\n\nClass: ${classData?.class_name || 'N/A'} ${classData?.section || ''}\nSubject: ${subjectData?.subject_code || 'N/A'} - ${subjectData?.subject_name || 'N/A'}\nStarted: ${new Date().toLocaleString()}\nExpires: ${new Date(session.expires_at).toLocaleString()}\n\nStudents can scan the QR code attached to mark attendance.\n\nBest regards,\nKPRCAS Attendance System`,
       html: htmlTemplate,
+      headers: {
+        'X-Priority': '1',
+        'X-MSMail-Priority': 'High',
+        'Importance': 'high',
+        'X-Mailer': 'KPRCAS Attendance System',
+        'X-Entity-Ref-ID': `SESSION-${session.id}`,
+        'List-Unsubscribe': `<mailto:${process.env.GMAIL_USER}?subject=unsubscribe>`,
+        'Message-ID': `<${session.session_code}-${Date.now()}@kprcas.edu>`,
+        'Auto-Submitted': 'auto-generated'
+      },
       attachments: [
         {
-          filename: 'qrcode.png',
+          filename: 'attendance-qr.png',
           content: qrCodeBuffer,
-          cid: 'qrcode'
+          cid: 'qrcode',
+          contentType: 'image/png'
         }
       ]
     }
@@ -312,8 +299,14 @@ export async function POST(request: NextRequest) {
       console.log('🚀 Sending email with options:', {
         from: mailOptions.from,
         to: mailOptions.to,
-        subject: mailOptions.subject
+        subject: mailOptions.subject,
+        recipients: emailTo.split(',').map(e => e.trim())
       })
+      console.log('📧 Email will be sent to:', emailTo)
+      console.log('📨 Primary recipient (teacher):', teacher.email)
+      if (classData?.class_email) {
+        console.log('📨 Secondary recipient (class):', classData.class_email)
+      }
       
       // Retry logic: try up to 2 times (reduced from 3 for faster processing)
       let lastError: any = null
@@ -335,6 +328,9 @@ export async function POST(request: NextRequest) {
           console.log('📧 Email ID:', info.messageId)
           console.log('📨 To:', mailOptions.to)
           console.log('🔄 Attempts needed:', attempts)
+          console.log('⚠️ DELIVERY NOTE: Gmail SMTP may delay delivery by 30-300 seconds. This is normal.')
+          console.log('💡 TIP: Email was ACCEPTED by Gmail server (sent successfully)')
+          console.log('📬 Check recipient\'s SPAM folder if not received within 5 minutes')
           if (classData?.class_email) {
             console.log('📧 Class email:', classData.class_email)
           }
@@ -345,14 +341,17 @@ export async function POST(request: NextRequest) {
 
           return NextResponse.json({
             success: true,
-            message: 'Session email sent successfully',
+            message: 'Session email sent successfully (Gmail SMTP)',
+            note: 'Email sent to Gmail server. Delivery may take 30 seconds to 5 minutes due to Gmail spam checks.',
             teacher_email: teacher.email,
             class_email: classData?.class_email || null,
             session_code: session.session_code,
             messageId: info.messageId,
             recipients_count: recipients.length,
             attempts: attempts,
-            duration_ms: totalDuration
+            duration_ms: totalDuration,
+            delivery_warning: 'Gmail SMTP delays are normal. Email will arrive shortly.',
+            check_spam: 'If not received in 5 minutes, check SPAM folder'
           })
         } catch (attemptError) {
           lastError = attemptError

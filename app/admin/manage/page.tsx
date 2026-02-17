@@ -47,6 +47,8 @@ interface Class {
   total_students: number
   department?: string
   class_email?: string
+  class_username?: string
+  class_password?: string
   latitude?: number | null
   longitude?: number | null
   location_radius?: number
@@ -594,6 +596,8 @@ export default function AdminManagementPage() {
       year: formData.get("year") ? parseInt(formData.get("year") as string) : null,
       department: department,
       class_email: formData.get("class_email") || null,
+      class_username: formData.get("class_username") || null,
+      class_password: formData.get("class_password") || null,
       latitude: formData.get("latitude") ? parseFloat(formData.get("latitude") as string) : null,
       longitude: formData.get("longitude") ? parseFloat(formData.get("longitude") as string) : null,
       location_radius: formData.get("location_radius") ? parseInt(formData.get("location_radius") as string) : 100,
@@ -602,6 +606,8 @@ export default function AdminManagementPage() {
     try {
       const url = "/api/admin/classes"
       const method = dialogMode === "add" ? "POST" : "PUT"
+      
+      console.log('📤 Sending class data:', data)
       
       const response = await fetch(url, {
         method,
@@ -616,11 +622,16 @@ export default function AdminManagementPage() {
         await fetchClasses()
         closeDialog()
       } else {
-        alert(result.error || "Operation failed")
+        const errorMessage = result.error || "Operation failed"
+        const fullMessage = result.hint 
+          ? `${errorMessage}\n\n⚠️ ${result.hint}` 
+          : errorMessage
+        alert(fullMessage)
+        console.error('❌ Class save error:', result)
       }
     } catch (error) {
       console.error("Error:", error)
-      alert("Operation failed")
+      alert("Operation failed. Check console for details.")
     } finally {
       setLoading(false)
     }
@@ -2216,6 +2227,52 @@ export default function AdminManagementPage() {
                           />
                           <p className="text-xs text-muted-foreground mt-1">
                             Students must be within this distance from the class location (default: 100m)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Class Login Credentials Section */}
+                    <div className="border-t pt-4 mt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Label className="text-sm font-medium">🔐 Shared Class Login (Quick Access)</Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Set shared credentials for this class. Any teacher can use these to quickly start sessions without individual login.
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <Label htmlFor="class_username">Class Username</Label>
+                          <Input
+                            id="class_username"
+                            name="class_username"
+                            type="text"
+                            defaultValue={(selectedItem as Class)?.class_username ?? ""}
+                            placeholder="e.g., CS101-A, IT-2024-B"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Unique username for this class (e.g., CS101-A)
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="class_password">Class Password</Label>
+                          <Input
+                            id="class_password"
+                            name="class_password"
+                            type="text"
+                            defaultValue={(selectedItem as Class)?.class_password ?? ""}
+                            placeholder="e.g., class123, attendance2026"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Simple password for quick access (visible to teachers)
+                          </p>
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                          <p className="text-xs text-blue-700">
+                            💡 <strong>Quick Access:</strong> Teachers go to <strong>/class-login</strong> and use these credentials to start sessions instantly without individual login.
                           </p>
                         </div>
                       </div>

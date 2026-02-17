@@ -806,7 +806,7 @@ export default function TeacherDashboard() {
           console.log("✅ QR code email sent successfully")
           const recipients = emailResult.recipients_count > 1 ? `${user.email} and class email` : user.email
           const emailTime = emailResult.duration_ms ? ` (${emailResult.duration_ms}ms)` : ''
-          alert(`✅ Session started successfully!\n\n📧 QR code email sent to:\n${recipients}${emailTime}\n\n✓ Session Code: ${session.session_code}\n✓ Message ID: ${emailResult.messageId || 'Processing'}\n✓ Delivery time: ${emailDuration}s\n\nShow the QR code on screen to students.`)
+          alert(`✅ Session started successfully!\n\n📧 Email sent to Gmail server:\n${recipients}${emailTime}\n\n✓ Session Code: ${session.session_code}\n✓ API Response: ${emailDuration}s\n\n⏰ NOTE: Gmail may delay delivery by 30s-5min\nThis is normal for automated emails.\n\n📱 Show QR code on screen to students now.`)
         } else {
           console.warn("⚠️ Email send failed:", emailResult)
           alert(`⚠️ Session started but email failed to send!\n\n✓ Session is active\n✓ Session Code: ${session.session_code}\n\n❌ Email Error: ${emailResult.error || 'Unknown error'}\n❌ Time spent: ${emailDuration}s\n\nPlease show the QR code on screen to students.`)
