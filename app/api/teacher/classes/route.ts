@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
 
     console.log('📚 Fetching classes for teacher:', teacherId)
 
-    // Fetch classes the teacher is assigned to via teacher_subject_assignments
+    // Fetch classes the teacher is assigned to via teacher_subjects
     const { data: assignments, error: assignmentsError } = await supabaseAdmin
-      .from('teacher_subject_assignments')
+      .from('teacher_subjects')
       .select(`
         class_id,
         classes (
@@ -96,7 +96,7 @@ export async function DELETE(request: NextRequest) {
 
     // Verify teacher has access to this class (is assigned to it)
     const { data: assignment, error: verifyError } = await supabaseAdmin
-      .from('teacher_subject_assignments')
+      .from('teacher_subjects')
       .select('id')
       .eq('teacher_id', teacherId)
       .eq('class_id', classId)

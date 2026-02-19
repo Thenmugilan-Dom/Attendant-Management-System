@@ -38,10 +38,15 @@ export async function POST(request: NextRequest) {
 
     console.log('📧 Fetching session:', sessionId)
 
-    // Fetch session details with simpler query
+    // Fetch session details with all related data in ONE query (much faster)
     const { data: session, error: sessionError } = await supabase
       .from('attendance_sessions')
-      .select('*')
+      .select(`
+        *,
+        users:teacher_id(id, name, email),
+        classes:class_id(id, class_name, section, year, class_email),
+        subjects:subject_id(id, subject_code, subject_name)
+      `)
       .eq('id', sessionId)
       .single()
 
@@ -55,37 +60,13 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Session found:', session.id)
 
-    // Fetch class details
-    const { data: classData, error: classError } = await supabase
-      .from('classes')
-      .select('id, class_name, section, year, class_email')
-      .eq('id', session.class_id)
-      .single()
+    // Extract related data from the joined query
+    const classData = session.classes as any
+    const subjectData = session.subjects as any
+    const teacherData = session.users as any
 
-    if (classError) {
-      console.error('Error fetching class:', classError)
-    }
-
-    // Fetch subject details
-    const { data: subjectData, error: subjectError } = await supabase
-      .from('subjects')
-      .select('id, subject_code, subject_name')
-      .eq('id', session.subject_id)
-      .single()
-
-    if (subjectError) {
-      console.error('Error fetching subject:', subjectError)
-    }
-
-    // Fetch teacher details
-    const { data: teacherData, error: teacherError } = await supabase
-      .from('users')
-      .select('id, name, email')
-      .eq('id', session.teacher_id)
-      .single()
-
-    if (teacherError || !teacherData) {
-      console.error('Error fetching teacher:', teacherError)
+    if (!teacherData) {
+      console.error('Error: Teacher not found in session data')
       return NextResponse.json(
         { error: 'Teacher not found' },
         { status: 404 }
@@ -138,7 +119,7 @@ export async function POST(request: NextRequest) {
     console.log('📧 Preparing to send email to:', teacher.email)
     console.log('🎯 Using Gmail account:', process.env.GMAIL_USER)
 
-    // Create transporter with optimized settings for immediate delivery
+    // Create transporter with optimized settings for FAST immediate delivery
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
@@ -147,58 +128,27 @@ export async function POST(request: NextRequest) {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
       },
-      connectionTimeout: 15000,  // 15 seconds (reduced for faster failure detection)
-      greetingTimeout: 10000,    // 10 seconds
-      socketTimeout: 20000,      // 20 seconds
+      connectionTimeout: 10000,  // 10 seconds (reduced for faster failure detection)
+      greetingTimeout: 5000,     // 5 seconds
+      socketTimeout: 15000,      // 15 seconds
       pool: false,               // Disable pooling for immediate fresh connections
       maxConnections: 1,
-      logger: false,              // Disable verbose logging for speed
+      logger: false,             // Disable verbose logging for speed
       debug: false,
       // Force immediate delivery
       tls: {
         rejectUnauthorized: true,
         minVersion: 'TLSv1.2'
       },
-      // Aggressive retry for faster delivery
+      // Send immediately without queueing
       maxMessages: 1,
+      // Disable connection reuse for fresh connection each time
+      disableFileAccess: true,
+      disableUrlAccess: true
     } as any)
 
-    // Verify connection before sending for faster error detection
-    try {
-      console.log('🔌 Verifying SMTP connection to Gmail...')
-      const verifyStart = Date.now()
-      await transporter.verify()
-      console.log(`✅ SMTP connection verified in ${Date.now() - verifyStart}ms`)
-      console.log('✅ Gmail authentication successful')
-    } catch (verifyError: any) {
-      console.error('❌ SMTP verification failed:', verifyError)
-      console.error('Error code:', verifyError?.code)
-      console.error('Error response:', verifyError?.response || verifyError?.message)
-      transporter.close()
-      
-      let errorMessage = 'Unable to connect to Gmail server'
-      let suggestion = ''
-      
-      if (verifyError?.code === 'EAUTH' || verifyError?.response?.includes('535')) {
-        errorMessage = 'Gmail authentication failed - Invalid credentials'
-        suggestion = '🔑 Your Gmail App Password may be EXPIRED or INVALID. Generate a new one at: https://myaccount.google.com/apppasswords'
-      } else if (verifyError?.code === 'ETIMEDOUT' || verifyError?.code === 'ECONNREFUSED') {
-        errorMessage = 'Cannot reach Gmail servers - Network issue'
-        suggestion = 'Check your internet connection or firewall settings'
-      }
-      
-      return NextResponse.json(
-        { 
-          success: false,
-          error: errorMessage,
-          details: verifyError instanceof Error ? verifyError.message : 'Unknown error',
-          error_code: verifyError?.code,
-          suggestion: suggestion,
-          gmail_user: process.env.GMAIL_USER
-        },
-        { status: 503 }
-      )
-    }
+    // SKIP verify() - it adds 2-3 seconds of latency and sendMail will fail anyway if creds are wrong
+    console.log('🚀 Skipping SMTP verify for faster delivery - sending directly...')
 
     // Email HTML template (simplified to avoid spam filters)
     const htmlTemplate = `<!DOCTYPE html>
@@ -308,87 +258,65 @@ export async function POST(request: NextRequest) {
         console.log('📨 Secondary recipient (class):', classData.class_email)
       }
       
-      // Retry logic: try up to 2 times (reduced from 3 for faster processing)
-      let lastError: any = null
-      let attempts = 0
-      const maxAttempts = 2
-      let attemptStart = 0
-      
-      while (attempts < maxAttempts) {
-        try {
-          attempts++
-          attemptStart = Date.now()
-          console.log(`📤 Email send attempt ${attempts}/${maxAttempts}...`)
-          
-          const info = await transporter.sendMail(mailOptions)
-          const attemptDuration = Date.now() - attemptStart
-          const totalDuration = Date.now() - sendStart
-          
-          console.log(`✅ Session email sent successfully in ${attemptDuration}ms (total: ${totalDuration}ms)`)
-          console.log('📧 Email ID:', info.messageId)
-          console.log('📨 To:', mailOptions.to)
-          console.log('🔄 Attempts needed:', attempts)
-          console.log('⚠️ DELIVERY NOTE: Gmail SMTP may delay delivery by 30-300 seconds. This is normal.')
-          console.log('💡 TIP: Email was ACCEPTED by Gmail server (sent successfully)')
-          console.log('📬 Check recipient\'s SPAM folder if not received within 5 minutes')
-          if (classData?.class_email) {
-            console.log('📧 Class email:', classData.class_email)
-          }
-
-          // Close transporter immediately after successful send
-          transporter.close()
-          console.log('🔒 SMTP connection closed')
-
-          return NextResponse.json({
-            success: true,
-            message: 'Session email sent successfully (Gmail SMTP)',
-            note: 'Email sent to Gmail server. Delivery may take 30 seconds to 5 minutes due to Gmail spam checks.',
-            teacher_email: teacher.email,
-            class_email: classData?.class_email || null,
-            session_code: session.session_code,
-            messageId: info.messageId,
-            recipients_count: recipients.length,
-            attempts: attempts,
-            duration_ms: totalDuration,
-            delivery_warning: 'Gmail SMTP delays are normal. Email will arrive shortly.',
-            check_spam: 'If not received in 5 minutes, check SPAM folder'
-          })
-        } catch (attemptError) {
-          lastError = attemptError
-          const attemptDuration = Date.now() - attemptStart
-          console.error(`❌ Attempt ${attempts} failed after ${attemptDuration}ms:`, attemptError instanceof Error ? attemptError.message : 'Unknown error')
-          
-          if (attempts < maxAttempts) {
-            // Wait 1 second before retry (reduced from 2 seconds)
-            console.log(`⏳ Waiting 1 second before retry...`)
-            await new Promise(resolve => setTimeout(resolve, 1000))
-          }
+      // Single attempt for fastest delivery (retries add significant latency)
+      try {
+        console.log('📤 Sending email directly (no retry for speed)...')
+        
+        const info = await transporter.sendMail(mailOptions)
+        const totalDuration = Date.now() - sendStart
+        
+        console.log(`✅ Session email sent successfully in ${totalDuration}ms`)
+        console.log('📧 Email ID:', info.messageId)
+        console.log('📨 To:', mailOptions.to)
+        if (classData?.class_email) {
+          console.log('📧 Class email:', classData.class_email)
         }
-      }
-      
-      // All attempts failed - close transporter
-      transporter.close()
-      console.log('🔒 SMTP connection closed (after failures)')
-      
-      // All attempts failed
-      const totalDuration = Date.now() - sendStart
-      console.error(`❌ All email send attempts failed (total time: ${totalDuration}ms)`)
-      console.error('Last error:', {
-        message: lastError instanceof Error ? lastError.message : 'Unknown error',
-        code: lastError instanceof Error && 'code' in lastError ? (lastError as any).code : undefined
-      })
-      
-      return NextResponse.json(
-        { 
-          success: false,
-          error: `Failed to send email after ${maxAttempts} attempts`,
-          details: lastError instanceof Error ? lastError.message : 'Unknown error',
+
+        // Close transporter immediately after successful send
+        transporter.close()
+
+        const apiDuration = Date.now() - apiStart
+        return NextResponse.json({
+          success: true,
+          message: 'Session email sent successfully (Gmail SMTP)',
           teacher_email: teacher.email,
-          attempts: maxAttempts,
-          duration_ms: totalDuration
-        },
-        { status: 500 }
-      )
+          class_email: classData?.class_email || null,
+          session_code: session.session_code,
+          messageId: info.messageId,
+          recipients_count: recipients.length,
+          duration_ms: totalDuration,
+          api_total_ms: apiDuration
+        })
+      } catch (sendError: any) {
+        // Close transporter on failure
+        transporter.close()
+        
+        const totalDuration = Date.now() - sendStart
+        console.error(`❌ Email send failed after ${totalDuration}ms:`, sendError?.message || 'Unknown error')
+        
+        let errorMessage = 'Failed to send email'
+        let suggestion = ''
+        
+        if (sendError?.code === 'EAUTH' || sendError?.response?.includes('535')) {
+          errorMessage = 'Gmail authentication failed - Invalid credentials'
+          suggestion = '🔑 Your Gmail App Password may be EXPIRED. Generate new one at: https://myaccount.google.com/apppasswords'
+        } else if (sendError?.code === 'ETIMEDOUT' || sendError?.code === 'ECONNREFUSED') {
+          errorMessage = 'Cannot reach Gmail servers - Network issue'
+          suggestion = 'Check your internet connection'
+        }
+        
+        return NextResponse.json(
+          { 
+            success: false,
+            error: errorMessage,
+            details: sendError instanceof Error ? sendError.message : 'Unknown error',
+            suggestion: suggestion || undefined,
+            teacher_email: teacher.email,
+            duration_ms: totalDuration
+          },
+          { status: 500 }
+        )
+      }
     } catch (emailError) {
       // Close transporter on unexpected error
       transporter.close()

@@ -61,7 +61,7 @@ export default function StudentAttendancePage() {
 
   // Timer for session expiry countdown
   useEffect(() => {
-    if (!sessionData || !sessionData.expiresAt) {
+     if (!sessionData || !sessionData.expiresAt) {
       console.log("❌ No session data or expiresAt found for timer:", { sessionData: !!sessionData, expiresAt: sessionData?.expiresAt })
       return
     }
@@ -160,7 +160,7 @@ export default function StudentAttendancePage() {
           // Success callback when QR code is scanned
           try {
             let sessionCode = ""
-            
+            let scannedData: any = null
             // Handle both URL format (new) and JSON format (legacy)
             if (decodedText.startsWith("http")) {
               // QR code contains a URL like: https://domain.com/student/attendance?session=ABC123
@@ -168,13 +168,14 @@ export default function StudentAttendancePage() {
               const url = new URL(decodedText)
               sessionCode = url.searchParams.get('session') || ""
               console.log("🔍 Extracted session code:", sessionCode)
+              // For URL format, scannedData is not available
+              scannedData = null
             } else {
               // QR code contains JSON (legacy format)
-              const scannedData = JSON.parse(decodedText)
+              scannedData = JSON.parse(decodedText)
               console.log("📱 QR Code scanned (JSON format):", scannedData)
               sessionCode = scannedData.sessionCode || scannedData.session_code || ""
             }
-            
             // Verify session if we have a session code
             if (sessionCode && sessionCode.length === 8) {
               console.log("🔄 Fetching complete session details for code:", sessionCode)
@@ -219,11 +220,11 @@ export default function StudentAttendancePage() {
                 }
               } else {
                 // Fallback to scanned data if no sessionCode
-                setSessionData(scannedData)
+                if (scannedData) setSessionData(scannedData)
               }
             } else {
               // Use scanned data as-is
-              setSessionData(scannedData)
+              if (scannedData) setSessionData(scannedData)
             }
             
             showToast("QR Code scanned successfully!", "success")
