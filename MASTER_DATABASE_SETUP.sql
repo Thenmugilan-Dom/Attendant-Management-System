@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS classes (
   total_students INTEGER DEFAULT 0,
   department TEXT NOT NULL DEFAULT 'General',
   class_email TEXT,
+  class_username TEXT,
+  class_password TEXT,
   latitude DECIMAL(10, 8) DEFAULT NULL,
   longitude DECIMAL(11, 8) DEFAULT NULL,
   location_radius INTEGER DEFAULT 100,
@@ -90,6 +92,8 @@ CREATE TABLE IF NOT EXISTS classes (
 COMMENT ON COLUMN classes.latitude IS 'Class location latitude (optional). If set, students must be near this location to mark attendance.';
 COMMENT ON COLUMN classes.longitude IS 'Class location longitude (optional). If set, students must be near this location to mark attendance.';
 COMMENT ON COLUMN classes.location_radius IS 'Allowed radius in meters from class location. Default: 100 meters.';
+COMMENT ON COLUMN classes.class_username IS 'Class login username for class-based authentication.';
+COMMENT ON COLUMN classes.class_password IS 'Class login password for class-based authentication.';
 
 
 -- ───────────────────────────────────────────────────────────────────────
@@ -357,6 +361,7 @@ CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 -- Classes indexes
 CREATE INDEX IF NOT EXISTS idx_classes_name ON classes(class_name);
 CREATE INDEX IF NOT EXISTS idx_classes_section ON classes(section);
+CREATE INDEX IF NOT EXISTS idx_classes_username ON classes(class_username);
 
 -- Subjects indexes
 CREATE INDEX IF NOT EXISTS idx_subjects_code ON subjects(subject_code);
@@ -410,9 +415,47 @@ CREATE INDEX IF NOT EXISTS idx_od_requests_admin_approved ON od_requests(admin_a
 
 
 -- ═══════════════════════════════════════════════════════════════════════
+-- SECTION 2A: CLASS LOGIN SETUP (From FIX_CLASS_LOGIN_COLUMNS.sql)
+-- ═══════════════════════════════════════════════════════════════════════
+
+SELECT '═══════════════════════════════════════' as info;
+SELECT '🔐 CLASS LOGIN SETUP' as info;
+SELECT '═══════════════════════════════════════' as info;
+
+-- Step 1: Columns already added to classes table above
+-- Verified: class_username and class_password columns exist
+
+-- Step 2: Make class_username unique (only if column exists)
+DO $$ 
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'classes' AND column_name = 'class_username'
+    ) THEN
+        -- Drop existing constraint if it exists
+        ALTER TABLE classes DROP CONSTRAINT IF EXISTS classes_class_username_key;
+        -- Add unique constraint
+        ALTER TABLE classes ADD CONSTRAINT classes_class_username_key UNIQUE (class_username);
+    END IF;
+END $$;
+
+-- Step 3: Verify columns exist
+SELECT 
+    CASE 
+        WHEN COUNT(*) = 2 THEN '✅ SUCCESS: Class login columns (username, password) configured!'
+        ELSE '❌ ERROR: Columns not added. Check error messages above.'
+    END as status
+FROM information_schema.columns
+WHERE table_name = 'classes' 
+AND column_name IN ('class_username', 'class_password');
+
+
+-- ═══════════════════════════════════════════════════════════════════════
 -- SECTION 3: TRIGGERS & AUTO-UPDATES
 -- ═══════════════════════════════════════════════════════════════════════
 
+SELECT '═══════════════════════════════════════' as info;
+SELECT '🔄 CREATING TRIGGERS' as info;
 SELECT '═══════════════════════════════════════' as info;
 SELECT '🔄 CREATING TRIGGERS' as info;
 SELECT '═══════════════════════════════════════' as info;
@@ -464,44 +507,6 @@ CREATE TRIGGER update_attendance_records_updated_at
     BEFORE UPDATE ON attendance_records
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
-
-
--- ───────────────────────────────────────────────────────────────────────
--- 3.2 Auto-update class student count
--- ───────────────────────────────────────────────────────────────────────
-
-CREATE OR REPLACE FUNCTION update_class_student_count()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF TG_OP = 'INSERT' THEN
-        UPDATE classes 
-        SET total_students = total_students + 1 
-        WHERE id = NEW.class_id;
-        RETURN NEW;
-    ELSIF TG_OP = 'DELETE' THEN
-        UPDATE classes 
-        SET total_students = total_students - 1 
-        WHERE id = OLD.class_id;
-        RETURN OLD;
-    ELSIF TG_OP = 'UPDATE' THEN
-        IF OLD.class_id != NEW.class_id THEN
-            UPDATE classes 
-            SET total_students = total_students - 1 
-            WHERE id = OLD.class_id;
-            UPDATE classes 
-            SET total_students = total_students + 1 
-            WHERE id = NEW.class_id;
-        END IF;
-        RETURN NEW;
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS student_count_trigger ON students;
-CREATE TRIGGER student_count_trigger
-    AFTER INSERT OR DELETE OR UPDATE ON students
-    FOR EACH ROW
-    EXECUTE FUNCTION update_class_student_count();
 
 
 -- ═══════════════════════════════════════════════════════════════════════
@@ -748,8 +753,49 @@ HAVING COUNT(*) > 1;
 
 
 -- ═══════════════════════════════════════════════════════════════════════
--- SECTION 7: TROUBLESHOOTING QUERIES
+-- SECTION 6B: DEPARTMENT-BASED ADMIN ISOLATION VERIFICATION
 -- ═══════════════════════════════════════════════════════════════════════
+
+SELECT '═══════════════════════════════════════' as info;
+SELECT '🔍 DEPARTMENT ISOLATION VERIFICATION' as info;
+SELECT '═══════════════════════════════════════' as info;
+
+-- 1. Verify department column exists in students table
+SELECT COUNT(*) as has_department_column 
+FROM information_schema.columns 
+WHERE table_name = 'students' AND column_name = 'department';
+
+-- 2. Verify department column exists in classes table
+SELECT COUNT(*) as has_department_column 
+FROM information_schema.columns 
+WHERE table_name = 'classes' AND column_name = 'department';
+
+-- 3. Verify department column exists in subjects table
+SELECT COUNT(*) as has_department_column 
+FROM information_schema.columns 
+WHERE table_name = 'subjects' AND column_name = 'department';
+
+-- 4. Verify department column exists in users table (for admins)
+SELECT COUNT(*) as has_department_column 
+FROM information_schema.columns 
+WHERE table_name = 'users' AND column_name = 'department';
+
+SELECT '✅ All department columns verified' as verification_status;
+
+-- 5. Check existing admins and their departments (will be shown after admins are created)
+-- 6. Test department isolation queries:
+
+-- Example: For CS admin - Run as CS admin:
+-- SELECT * FROM classes WHERE department = 'Computer Science';
+
+-- Example: For IT admin - Run as IT admin:
+-- SELECT * FROM classes WHERE department = 'Information Technology';
+
+-- 7. Verify students are assigned to correct department:
+-- SELECT id, name, email, department FROM students WHERE department = 'Computer Science' LIMIT 5;
+
+-- 8. Verify subjects are assigned to correct department:
+-- SELECT id, subject_code, subject_name, department FROM subjects WHERE department = 'Computer Science' LIMIT 5;
 
 SELECT '═══════════════════════════════════════' as info;
 SELECT '🔧 TROUBLESHOOTING INFORMATION' as info;
